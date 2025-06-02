@@ -1,9 +1,3 @@
-app.py
-/pages
-    Accueil.py
-    Dashboard.py
-    GeopoliticalNews.py
-
 import streamlit as st
 
 st.title("Accueil – Saisissez votre portefeuille fournisseur (MRP code)")
