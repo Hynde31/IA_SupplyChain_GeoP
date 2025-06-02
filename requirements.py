@@ -1,0 +1,9 @@
+streamlit>=1.29
+pandas
+numpy
+python-pptx
+plotly
+pydeck
+feedparser
+spacy
+geopy
