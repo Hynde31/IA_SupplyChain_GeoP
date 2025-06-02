@@ -7,3 +7,4 @@ pydeck
 feedparser
 spacy
 geopy
+plotly
