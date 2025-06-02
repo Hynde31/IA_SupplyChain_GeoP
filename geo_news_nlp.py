@@ -1,4 +1,4 @@
-<import feedparser
+import feedparser
 import spacy
 from geopy.geocoders import Nominatim
 import pandas as pd
