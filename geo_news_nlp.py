@@ -1,24 +1,20 @@
 import feedparser
 import spacy
+import streamlit as st
+from collections import defaultdict
+import re
+from datetime import datetime
 
-# Ajout du cache Streamlit uniquement si tu utilises Streamlit
-try:
-    import streamlit as st
-    @st.cache_resource
-    def get_nlp():
-        try:
-            return spacy.load("fr_core_news_sm")
-        except:
-            return spacy.load("en_core_web_sm")
-    nlp = get_nlp()
-except ImportError:
-    # Utilisation locale sans Streamlit
+# Modèle spaCy léger et cache Streamlit
+@st.cache_resource
+def get_nlp():
     try:
-        nlp = spacy.load("fr_core_news_sm")
+        return spacy.load("fr_core_news_sm")
     except:
-        nlp = spacy.load("en_core_web_sm")
+        return spacy.load("en_core_web_sm")
 
-# Liste de mots-clés à surveiller et leur niveau d'impact
+nlp = get_nlp()
+
 KEYWORDS = {
     "grève": 2, "strike": 2, "embargo": 3, "blocus": 3, "blockade": 3,
     "conflit": 2, "conflict": 2, "guerre": 3, "war": 3, "manifestation": 1,
@@ -26,7 +22,6 @@ KEYWORDS = {
     "attack": 3, "sanction": 2, "tariff": 2, "douane": 2, "customs": 2,
 }
 
-# Mappage rapide pour quelques villes/pays (accélère le géocodage)
 QUICK_COORDS = {
     "Casablanca": (33.5731, -7.5898), "Maroc": (31.7917, -7.0926),
     "France": (46.6034, 1.8883), "USA": (39.8283, -98.5795),
@@ -43,22 +38,23 @@ RSS_FEEDS = [
     "https://www.lemonde.fr/international/rss_full.xml"
 ]
 
-from collections import defaultdict
-import re
-from datetime import datetime
+# Cache RSS avec Streamlit, TTL 1h
+@st.cache_data(ttl=3600)
+def fetch_feed(feed_url):
+    return feedparser.parse(feed_url)
 
-def get_news_for_period(period_yyyymm, max_news_per_feed=15):
+def get_news_for_period(period_yyyymm, max_news_per_feed=5):
     """ Récupère et filtre les news pour le mois/période voulue (max limité) """
     period_dt = datetime.strptime(period_yyyymm, "%Y-%m")
     filtered_news = []
     for feed_url in RSS_FEEDS:
-        feed = feedparser.parse(feed_url)
+        feed = fetch_feed(feed_url)
         # Limite le nombre de news analysées par flux
         for entry in feed.entries[:max_news_per_feed]:
             try:
-                if hasattr(entry, "published_parsed"):
+                if hasattr(entry, "published_parsed") and entry.published_parsed:
                     pub_date = datetime(*entry.published_parsed[:6])
-                elif hasattr(entry, "updated_parsed"):
+                elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
                     pub_date = datetime(*entry.updated_parsed[:6])
                 else:
                     pub_date = period_dt
@@ -70,7 +66,6 @@ def get_news_for_period(period_yyyymm, max_news_per_feed=15):
                     })
             except Exception:
                 continue
-    print(f"[INFO] {len(filtered_news)} news trouvées pour la période {period_yyyymm}")
     return filtered_news
 
 def extract_geo_and_impact(news_items):
@@ -96,7 +91,6 @@ def extract_geo_and_impact(news_items):
     for geo, info in impact_dict.items():
         if info["impact"] > 0 and info["lat"] and info["lon"]:
             impacts.append({"zone": geo, "lat": info["lat"], "lon": info["lon"], "impact": info["impact"]})
-    print(f"[INFO] {len(impacts)} impacts géopolitiques détectés.")
     return impacts
 
 def get_news_impact_for_month(month_str):
