@@ -3,24 +3,21 @@ st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide"
 
 st.title("Veille géopolitique et détection d'impacts Supply Chain")
 
-# Tente d'importer la fonction d'analyse NLP
+# Liste des mois 2025 de janvier à décembre (ordre chronologique)
+months = [f"2025-{m:02}" for m in range(1, 13)]
+
+# Teste la disponibilité de la fonction d'analyse NLP
 NLP_AVAILABLE = True
 try:
     from geo_news_nlp import get_news_impact_for_month
 except Exception:
     NLP_AVAILABLE = False
 
-# Génère tous les mois de 2025, du plus récent au plus ancien
-import datetime
-months = []
-for m in range(12, 0, -1):
-    months.append(f"2025-{m:02}")
-
 if not NLP_AVAILABLE:
     st.error(
-        "Aucun modèle spaCy compatible n'a pu être chargé. "
+        "Aucun modèle spaCy compatible n'a pu être chargé.\n\n"
         "Les fonctionnalités de veille géopolitique sont désactivées.\n\n"
-        "Pour activer l'analyse, installe le modèle spaCy français : "
+        "Pour activer l'analyse, installe le modèle spaCy français avec :\n"
         "`python -m spacy download fr_core_news_sm`"
     )
 else:
