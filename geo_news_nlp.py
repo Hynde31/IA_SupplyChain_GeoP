@@ -6,22 +6,28 @@ import re
 from datetime import datetime
 import subprocess
 
-# Téléchargement automatique des modèles spaCy si besoin
-def download_model(model_name):
+def try_download_and_load(model_name):
+    """Essaye de télécharger et charger un modèle spaCy, retourne None si échec."""
     try:
-        spacy.load(model_name)
+        return spacy.load(model_name)
     except OSError:
-        subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
-
-download_model("fr_core_news_sm")
-download_model("en_core_web_sm")
+        try:
+            subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
+            return spacy.load(model_name)
+        except Exception:
+            return None
 
 @st.cache_resource
 def get_nlp():
-    try:
-        return spacy.load("fr_core_news_sm")
-    except:
-        return spacy.load("en_core_web_sm")
+    # Essaye le modèle français, puis anglais, sinon None
+    nlp = try_download_and_load("fr_core_news_sm")
+    if nlp is None:
+        st.warning("Le modèle spaCy 'fr_core_news_sm' n'est pas disponible, passage à l'anglais.")
+        nlp = try_download_and_load("en_core_web_sm")
+    if nlp is None:
+        st.error("Aucun modèle spaCy compatible n'a pu être chargé. Analyse NLP désactivée.")
+        raise RuntimeError("No spaCy model available")
+    return nlp
 
 nlp = get_nlp()
 
@@ -53,6 +59,7 @@ def fetch_feed(feed_url):
     return feedparser.parse(feed_url)
 
 def get_news_for_period(period_yyyymm, max_news_per_feed=5):
+    """ Récupère et filtre les news pour le mois/période voulue (max limité) """
     period_dt = datetime.strptime(period_yyyymm, "%Y-%m")
     filtered_news = []
     for feed_url in RSS_FEEDS:
@@ -76,6 +83,7 @@ def get_news_for_period(period_yyyymm, max_news_per_feed=5):
     return filtered_news
 
 def extract_geo_and_impact(news_items):
+    """ Analyse les news et détecte zones géographiques + impact (sans géocodage réseau) """
     impact_dict = defaultdict(lambda: {"impact": 0, "lat": None, "lon": None, "news": []})
     for news in news_items:
         txt = (news["title"] + " " + news["summary"]).replace('&quot;', '"')
@@ -100,10 +108,15 @@ def extract_geo_and_impact(news_items):
     return impacts
 
 def get_news_impact_for_month(month_str):
+    """
+    Fonction principale à consommer depuis Streamlit :
+    - Retourne les news et les impacts détectés pour un mois/année donné.
+    """
     news = get_news_for_period(month_str)
     impacts = extract_geo_and_impact(news)
     return news, impacts
 
+# Exemple d'utilisation locale
 if __name__ == "__main__":
     month = "2025-05"
     news, impacts = get_news_impact_for_month(month)
