@@ -13,7 +13,6 @@ st.write(
     """
 )
 
-# Charger le mapping (adapté à ta structure)
 @st.cache_data
 def load_mapping():
     return pd.read_csv("mapping_fournisseurs.csv")
@@ -27,6 +26,12 @@ portefeuille_sel = st.selectbox("Choisissez un portefeuille", portefeuilles)
 # Filtrer le mapping selon le portefeuille sélectionné
 sites_portefeuille = mapping[mapping["Portefeuille"] == portefeuille_sel]
 
+# **NOUVEAU : Affichage du mapping filtré**
+st.subheader("Fournisseurs et sites couverts par ce portefeuille")
+st.dataframe(
+    sites_portefeuille[["Fournisseur", "Site prod", "Pays", "Ville"]].reset_index(drop=True)
+)
+
 # Créer la liste des pays et villes des sites à surveiller
 pays_sites = set(sites_portefeuille["Pays"].str.lower()) | set(sites_portefeuille["Ville"].str.lower())
 
@@ -36,8 +41,6 @@ if st.button("Analyser ce mois"):
     news, impacts = get_news_impact_for_month(month)
 
     def lieux_news(news_item):
-        # Suppose que chaque news a un champ "places" (liste de lieux détectés, à adapter selon ta structure)
-        # Sinon, tu peux parser le résumé/titre ici pour matcher sur pays_sites
         fields = []
         if "places" in news_item and news_item["places"]:
             fields = [x.lower() for x in news_item["places"]]
@@ -62,7 +65,7 @@ if st.button("Analyser ce mois"):
     else:
         st.info("Aucune actualité pertinente détectée pour votre portefeuille et ce mois.")
 
-    # Carte interactive des impacts (même logique qu’avant)
+    # Carte interactive des impacts
     if impacts is not None and len(impacts) > 0:
         st.subheader("Carte des zones géographiques à risque détectées")
         df = pd.DataFrame(impacts)
