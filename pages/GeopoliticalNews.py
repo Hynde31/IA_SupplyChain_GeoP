@@ -2,7 +2,6 @@ import streamlit as st
 from geo_news_nlp import get_news_impact_for_month
 
 st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
-st.title("Veille géopolitique et détection d'impacts Supply Chain")
 
 # Sélection de la période (année/mois)
 mois = st.selectbox("Sélectionnez le mois à analyser", [
