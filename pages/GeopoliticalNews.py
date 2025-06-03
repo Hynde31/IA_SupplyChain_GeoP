@@ -13,7 +13,6 @@ st.write(
     """
 )
 
-# Champ de saisie pour le mois (au format AAAA-MM)
 month = st.text_input("Mois à surveiller (format AAAA-MM)", "2025-05")
 
 if st.button("Analyser ce mois"):
@@ -28,15 +27,13 @@ if st.button("Analyser ce mois"):
     else:
         st.info("Aucune actualité trouvée pour ce mois.")
 
-    # --- Amélioration : carte interactive des zones à risque ---
+    # --- Affichage de la carte interactive ---
     if impacts is not None and len(impacts) > 0:
         st.subheader("Carte des zones géographiques à risque détectées")
-        # Conversion en DataFrame pour st.map()
         df = pd.DataFrame(impacts)
         df = df.rename(columns={"lat": "latitude", "lon": "longitude"})
         st.map(df)
 
-        # Affichage sous forme de liste également
         st.subheader("Zones à risque détectées")
         for imp in impacts:
             st.write(
