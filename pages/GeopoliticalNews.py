@@ -1,9 +1,8 @@
 import streamlit as st
-
-st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
-
 import pandas as pd
 from geo_news_nlp import get_news_impact_for_month
+
+st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
 
 st.title("Veille géopolitique Supply Chain")
 st.write(
@@ -17,22 +16,26 @@ st.write(
 def load_mapping():
     return pd.read_csv("mapping_fournisseurs.csv")
 
+# Charger le mapping
 mapping = load_mapping()
 
-# Sélection portefeuille
+# Sélection du portefeuille
 portefeuilles = mapping["Portefeuille"].unique()
 portefeuille_sel = st.selectbox("Choisissez un portefeuille", portefeuilles)
 
 # Filtrer le mapping selon le portefeuille sélectionné
 sites_portefeuille = mapping[mapping["Portefeuille"] == portefeuille_sel]
 
-# **NOUVEAU : Affichage du mapping filtré**
+# Affichage du mapping filtré
 st.subheader("Fournisseurs et sites couverts par ce portefeuille")
-st.dataframe(
-    sites_portefeuille[["Fournisseur", "Site prod", "Pays", "Ville"]].reset_index(drop=True)
-)
+if not sites_portefeuille.empty:
+    st.dataframe(
+        sites_portefeuille[["Fournisseur", "Site prod", "Pays", "Ville"]].reset_index(drop=True)
+    )
+else:
+    st.info("Aucun fournisseur ou site référencé pour ce portefeuille.")
 
-# Créer la liste des pays et villes des sites à surveiller
+# Création de la liste des pays et villes des sites à surveiller
 pays_sites = set(sites_portefeuille["Pays"].str.lower()) | set(sites_portefeuille["Ville"].str.lower())
 
 month = st.text_input("Mois à surveiller (format AAAA-MM)", "2025-05")
@@ -41,6 +44,9 @@ if st.button("Analyser ce mois"):
     news, impacts = get_news_impact_for_month(month)
 
     def lieux_news(news_item):
+        """
+        Retourne la liste des lieux détectés dans les champs 'places', 'title' et 'summary' d'une news.
+        """
         fields = []
         if "places" in news_item and news_item["places"]:
             fields = [x.lower() for x in news_item["places"]]
@@ -50,7 +56,7 @@ if st.button("Analyser ce mois"):
             fields += [news_item["summary"].lower()]
         return fields
 
-    # Filtrer les news pertinentes
+    # Filtrer les news pertinentes pour le portefeuille sélectionné
     news_pertinentes = []
     for n in news if news else []:
         if any(any(site in champ for site in pays_sites) for champ in lieux_news(n)):
