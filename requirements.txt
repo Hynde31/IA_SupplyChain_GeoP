@@ -3,5 +3,3 @@ pandas
 feedparser
 spacy
 plotly
-fr-core-news-sm
-en-core-web-sm
