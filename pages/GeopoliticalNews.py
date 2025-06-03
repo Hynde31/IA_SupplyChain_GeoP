@@ -1,9 +1,9 @@
 import streamlit as st
 
-# Cette ligne doit être tout en haut, juste après l'import de streamlit
 st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
 
 from geo_news_nlp import get_news_impact_for_month
+import pandas as pd
 
 st.title("Veille géopolitique Supply Chain")
 st.write(
@@ -28,12 +28,19 @@ if st.button("Analyser ce mois"):
     else:
         st.info("Aucune actualité trouvée pour ce mois.")
 
-    # Affichage des zones à risque si la NLP fonctionne
+    # --- Amélioration : carte interactive des zones à risque ---
     if impacts is not None and len(impacts) > 0:
-        st.subheader("Zones géographiques à risque détectées")
+        st.subheader("Carte des zones géographiques à risque détectées")
+        # Conversion en DataFrame pour st.map()
+        df = pd.DataFrame(impacts)
+        df = df.rename(columns={"lat": "latitude", "lon": "longitude"})
+        st.map(df)
+
+        # Affichage sous forme de liste également
+        st.subheader("Zones à risque détectées")
         for imp in impacts:
             st.write(
-                f"- {imp['zone']} (lat: {imp['lat']}, lon: {imp['lon']}) — Score d’impact : {imp['impact']}"
+                f"- {imp['zone']} (lat: {imp['latitude']}, lon: {imp['longitude']}) — Score d’impact : {imp['impact']}"
             )
     elif impacts == [] and news is not None:
         st.info("Aucun impact géopolitique détecté pour ce mois.")
