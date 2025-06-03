@@ -1,43 +1,43 @@
 import streamlit as st
-from geo_news_nlp import get_news_impact_for_month
 
+# Cette ligne doit être tout en haut, juste après l'import de streamlit
 st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
 
-# Sélection de la période (année/mois)
-mois = st.selectbox("Sélectionnez le mois à analyser", [
-    "2025-06", "2025-05", "2025-04", "2025-03", "2025-02", "2025-01"
-])
+from geo_news_nlp import get_news_impact_for_month
 
-# Lancer l'analyse avec un bouton
-if st.button("Lancer l'analyse"):
-    with st.spinner("Chargement des actualités, analyse NLP et géocodage..."):
-        news, impacts = get_news_impact_for_month(mois)
-    st.success(f"{len(news)} actualités trouvées pour {mois}")
+st.title("Veille géopolitique Supply Chain")
+st.write(
+    """
+    Ce tableau de bord analyse les actualités géopolitiques pouvant impacter la supply chain.
+    Entrez un mois pour lancer la veille automatique.
+    """
+)
 
-    # Affichage des actualités
-    st.subheader("Liste des actualités")
-    for n in news:
-        st.markdown(f"- **{n['date']}** : **{n['title']}**<br>{n['summary']}", unsafe_allow_html=True)
+# Champ de saisie pour le mois (au format AAAA-MM)
+month = st.text_input("Mois à surveiller (format AAAA-MM)", "2025-05")
 
-    # Affichage des impacts géopolitiques détectés
-    st.subheader("Impacts géopolitiques détectés (zones géographiques)")
-    if impacts:
-        st.dataframe([
-            {
-                "Zone": imp["zone"],
-                "Latitude": imp["lat"],
-                "Longitude": imp["lon"],
-                "Impact": imp["impact"]
-            } for imp in impacts
-        ])
-        # Carte si au moins un impact
-        st.map(
-            data={
-                "lat": [imp["lat"] for imp in impacts],
-                "lon": [imp["lon"] for imp in impacts]
-            }
-        )
+if st.button("Analyser ce mois"):
+    news, impacts = get_news_impact_for_month(month)
+
+    if news is not None and len(news) > 0:
+        st.subheader("Actualités du mois sélectionné")
+        for entry in news:
+            st.markdown(f"**{entry['date']}** — {entry['title']}")
+            if entry.get("summary"):
+                st.caption(entry['summary'])
     else:
+        st.info("Aucune actualité trouvée pour ce mois.")
+
+    # Affichage des zones à risque si la NLP fonctionne
+    if impacts is not None and len(impacts) > 0:
+        st.subheader("Zones géographiques à risque détectées")
+        for imp in impacts:
+            st.write(
+                f"- {imp['zone']} (lat: {imp['lat']}, lon: {imp['lon']}) — Score d’impact : {imp['impact']}"
+            )
+    elif impacts == [] and news is not None:
         st.info("Aucun impact géopolitique détecté pour ce mois.")
+    elif impacts is None:
+        st.warning("Analyse NLP non disponible dans cet environnement.")
 else:
-    st.info("Cliquez sur le bouton ci-dessus pour lancer l'analyse.")
+    st.info("Entrez un mois et cliquez sur Analyser pour lancer la veille.")
