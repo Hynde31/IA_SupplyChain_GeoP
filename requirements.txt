@@ -1,11 +1,7 @@
-streamlit>=1.29
+streamlit
 pandas
-numpy
-python-pptx
-plotly
-pydeck
 feedparser
 spacy
-geopy
-https://github.com/explosion/spacy-models/releases/download/fr_core_news_sm-3.7.0/fr_core_news_sm-3.7.0.tar.gz
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
+plotly
+fr-core-news-sm
+en-core-web-sm
