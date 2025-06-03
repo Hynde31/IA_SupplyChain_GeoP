@@ -7,20 +7,24 @@ st.markdown("""
 Pour accéder à votre dashboard personnalisé, entrez un ou plusieurs codes MRP (identifiants SAP de vos articles ou familles fournisseurs).
 """)
 
-def valider_mrp():
-    if st.session_state["mrp_input"].strip():
-        st.session_state["mrp_codes"] = [code.strip().upper() for code in st.session_state["mrp_input"].split(",") if code.strip()]
+def go_to_dashboard():
+    if st.session_state.get("mrp_input", "").strip():
+        st.session_state["mrp_codes"] = [
+            code.strip().upper()
+            for code in st.session_state["mrp_input"].split(",")
+            if code.strip()
+        ]
         st.switch_page("pages/Dashboard.py")
 
 st.text_input(
     "Entrez un ou plusieurs codes MRP (séparés par virgule)",
     key="mrp_input",
-    on_change=valider_mrp
+    on_change=go_to_dashboard
 )
 
 if st.button("Valider"):
-    valider_mrp()
+    go_to_dashboard()
 
-# Bouton page suivante (Dashboard) même si pas validé
+# Optionnel : bouton pour passer à la page suivante même sans saisie valide
 if st.button("Page suivante ➡️"):
     st.switch_page("pages/Dashboard.py")
