@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import pydeck as pdk
 from suppliers_data import SUPPLIERS
 from utils import risk_gauge, kpi_card
 
@@ -13,6 +14,7 @@ if not mrp_codes:
         st.switch_page("pages/Accueil.py")
     st.stop()
 
+# Flatten supplier data for selected MRP codes
 def flatten_suppliers(suppliers, mrp_codes):
     rows = []
     for s in suppliers:
@@ -38,6 +40,81 @@ def flatten_suppliers(suppliers, mrp_codes):
 
 df = flatten_suppliers(SUPPLIERS, mrp_codes)
 
+# Simule des conflits géopolitiques (remplace cette fonction par la tienne si tu as un flux live)
+def get_geopolitical_impacts_now():
+    # Exemple Ukraine, Mer Rouge, Israël
+    return [
+        {
+            "zone": "Est Ukraine",
+            "lat": 48.5,
+            "lon": 37.5,
+            "impact": 1.0,
+            "titre": "Conflit armé"
+        },
+        {
+            "zone": "Mer Rouge",
+            "lat": 15.8,
+            "lon": 41.8,
+            "impact": 0.7,
+            "titre": "Attaques route maritime"
+        },
+        {
+            "zone": "Proche Israël",
+            "lat": 31.5,
+            "lon": 34.8,
+            "impact": 0.9,
+            "titre": "Tensions militaires"
+        }
+    ]
+
+conflicts = get_geopolitical_impacts_now()
+df_conflict = pd.DataFrame(conflicts)
+
+# --------------- MAP EN HAUT -----------------
+supplier_layer = pdk.Layer(
+    "ScatterplotLayer",
+    data=df,
+    get_position="[longitude, latitude]",
+    get_fill_color="[40, 120, 255, 200]",
+    get_radius=35000,
+    pickable=True,
+    auto_highlight=True,
+    radius_min_pixels=5,
+    radius_max_pixels=15,
+)
+
+conflict_layer = pdk.Layer(
+    "ScatterplotLayer",
+    data=df_conflict,
+    get_position="[lon, lat]",
+    get_fill_color="[255, 60, 60, 180]",
+    get_radius="impact * 100000",
+    pickable=True,
+    auto_highlight=True,
+    radius_min_pixels=10,
+    radius_max_pixels=60,
+)
+
+view_state = pdk.ViewState(
+    latitude=df["latitude"].mean() if not df.empty else 30,
+    longitude=df["longitude"].mean() if not df.empty else 10,
+    zoom=2.6,
+    pitch=0,
+)
+
+st.subheader("Carte interactive : sites fournisseurs & conflits géopolitiques en temps réel")
+st.pydeck_chart(
+    pdk.Deck(
+        layers=[supplier_layer, conflict_layer],
+        initial_view_state=view_state,
+        tooltip={
+            "html": "<b>Type:</b> {Supplier} {zone}<br/><b>Ville:</b> {Site City}<br/><b>Pays:</b> {Country} <br/><b>Incident:</b> {titre}",
+            "style": {"color": "white"},
+        }
+    )
+)
+
+# --------------- KPI & TABLEAUX -----------------
 if not df.empty:
     # Calcul du score de risque et niveau
     df["Risk Score"] = (1 - df["On-Time Delivery (%)"]/100) \
@@ -59,12 +136,6 @@ if not df.empty:
 
     st.subheader("Tableau détaillé des sites fournisseurs")
     st.dataframe(df, use_container_width=True)
-
-    st.subheader("Carte interactive des sites fournisseurs")
-    if not df.empty and df[["latitude", "longitude"]].notnull().all().all():
-        st.map(df[["latitude", "longitude"]])
-    else:
-        st.info("Aucun site localisé pour ce portefeuille.")
 else:
     st.warning("Aucun site fournisseur dans ce portefeuille.")
 
