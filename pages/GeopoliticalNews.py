@@ -1,93 +1,48 @@
 import streamlit as st
-import pandas as pd
 from geo_news_nlp import get_news_impact_for_month
 
 st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
+st.title("Veille géopolitique et détection d'impacts Supply Chain")
 
-st.title("Veille géopolitique Supply Chain")
-st.write(
-    """
-    Ce tableau de bord analyse les actualités géopolitiques pouvant impacter la supply chain.
-    Sélectionnez un portefeuille pour afficher uniquement les alertes qui concernent vos sites fournisseurs.
-    """
-)
+mois = st.selectbox("Sélectionnez le mois à analyser", [
+    "2025-06", "2025-05", "2025-04", "2025-03", "2025-02", "2025-01"
+])
 
-@st.cache_data
-def load_mapping():
-    return pd.read_csv("mapping_fournisseurs.csv")
+if st.button("Lancer l'analyse"):
+    with st.spinner("Chargement des actualités, analyse NLP et géocodage..."):
+        news, impacts = get_news_impact_for_month(mois)
+    st.success(f"{len(news)} actualités trouvées pour {mois}")
 
-# Charger le mapping
-mapping = load_mapping()
+    st.subheader("Liste des actualités")
+    for n in news:
+        st.markdown(f"- **{n['date']}** : **{n['title']}**<br>{n['summary']}", unsafe_allow_html=True)
 
-# Sélection du portefeuille
-portefeuilles = mapping["Portefeuille"].unique()
-portefeuille_sel = st.selectbox("Choisissez un portefeuille", portefeuilles)
-
-# Filtrer le mapping selon le portefeuille sélectionné
-sites_portefeuille = mapping[mapping["Portefeuille"] == portefeuille_sel]
-
-# Affichage du mapping filtré
-st.subheader("Fournisseurs et sites couverts par ce portefeuille")
-if not sites_portefeuille.empty:
-    st.dataframe(
-        sites_portefeuille[["Fournisseur", "Site prod", "Pays", "Ville"]].reset_index(drop=True)
-    )
-else:
-    st.info("Aucun fournisseur ou site référencé pour ce portefeuille.")
-
-# Création de la liste des pays et villes des sites à surveiller
-pays_sites = set(sites_portefeuille["Pays"].str.lower()) | set(sites_portefeuille["Ville"].str.lower())
-
-month = st.text_input("Mois à surveiller (format AAAA-MM)", "2025-05")
-
-if st.button("Analyser ce mois"):
-    news, impacts = get_news_impact_for_month(month)
-
-    def lieux_news(news_item):
-        """
-        Retourne la liste des lieux détectés dans les champs 'places', 'title' et 'summary' d'une news.
-        """
-        fields = []
-        if "places" in news_item and news_item["places"]:
-            fields = [x.lower() for x in news_item["places"]]
-        if "title" in news_item and news_item["title"]:
-            fields += [news_item["title"].lower()]
-        if "summary" in news_item and news_item["summary"]:
-            fields += [news_item["summary"].lower()]
-        return fields
-
-    # Filtrer les news pertinentes pour le portefeuille sélectionné
-    news_pertinentes = []
-    for n in news if news else []:
-        if any(any(site in champ for site in pays_sites) for champ in lieux_news(n)):
-            news_pertinentes.append(n)
-
-    if news_pertinentes:
-        st.subheader("Actualités pertinentes pour votre portefeuille")
-        for entry in news_pertinentes:
-            st.markdown(f"**{entry['date']}** — {entry['title']}")
-            if entry.get("summary"):
-                st.caption(entry['summary'])
+    st.subheader("Impacts géopolitiques détectés (zones géographiques)")
+    if impacts:
+        st.dataframe([
+            {
+                "Zone": imp["zone"],
+                "Latitude": imp["lat"],
+                "Longitude": imp["lon"],
+                "Impact": imp["impact"]
+            } for imp in impacts
+        ])
+        st.map(
+            data={
+                "lat": [imp["lat"] for imp in impacts],
+                "lon": [imp["lon"] for imp in impacts]
+            }
+        )
     else:
-        st.info("Aucune actualité pertinente détectée pour votre portefeuille et ce mois.")
-
-    # Carte interactive des impacts
-    if impacts is not None and len(impacts) > 0:
-        st.subheader("Carte des zones géographiques à risque détectées")
-        df = pd.DataFrame(impacts)
-        df = df.rename(columns={"lat": "latitude", "lon": "longitude"})
-        st.map(df)
-
-        st.subheader("Zones à risque détectées")
-        for imp in impacts:
-            st.write(
-                f"- {imp['zone']} (lat: {imp['latitude']}, lon: {imp['longitude']}) — Score d’impact : {imp['impact']}"
-            )
-    elif impacts == [] and news is not None:
         st.info("Aucun impact géopolitique détecté pour ce mois.")
-    elif impacts is None:
-        st.warning("Analyse NLP non disponible dans cet environnement.")
 else:
-    st.info("Sélectionnez un portefeuille, entrez un mois et cliquez sur Analyser.")
+    st.info("Cliquez sur le bouton ci-dessus pour lancer l'analyse.")
 
-st.markdown("""
+# Navigation boutons
+col1, col2 = st.columns([1, 1])
+with col1:
+    if st.button("⬅️ Dashboard"):
+        st.switch_page("pages/Dashboard.py")
+with col2:
+    if st.button("🏠 Accueil"):
+        st.switch_page("pages/Accueil.py")
