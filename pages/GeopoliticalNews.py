@@ -3,28 +3,33 @@ st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide"
 
 st.title("Veille géopolitique et détection d'impacts Supply Chain")
 
-# On tente d'importer la fonction d'analyse NLP
+# Tente d'importer la fonction d'analyse NLP
 NLP_AVAILABLE = True
 try:
     from geo_news_nlp import get_news_impact_for_month
-except Exception as e:
+except Exception:
     NLP_AVAILABLE = False
-    NLP_ERR_MSG = str(e)
+
+# Génère tous les mois de 2025, du plus récent au plus ancien
+import datetime
+months = []
+for m in range(12, 0, -1):
+    months.append(f"2025-{m:02}")
 
 if not NLP_AVAILABLE:
-    st.warning(
-        "La veille géopolitique est désactivée : aucun modèle spaCy compatible n'est disponible sur l'environnement. "
-        "Aucune analyse ni cartographie d'alerte ne sera proposée."
+    st.error(
+        "Aucun modèle spaCy compatible n'a pu être chargé. "
+        "Les fonctionnalités de veille géopolitique sont désactivées.\n\n"
+        "Pour activer l'analyse, installe le modèle spaCy français : "
+        "`python -m spacy download fr_core_news_sm`"
     )
 else:
-    mois = st.selectbox("Sélectionnez le mois à analyser", [
-        "2025-06", "2025-05", "2025-04", "2025-03", "2025-02", "2025-01"
-    ])
+    mois = st.selectbox("Sélectionnez le mois à analyser", months)
 
     if st.button("Lancer l'analyse"):
         with st.spinner("Chargement des actualités, analyse NLP et géocodage..."):
             news, impacts = get_news_impact_for_month(mois)
-        if news is not None:
+        if news is not None and len(news) > 0:
             st.success(f"{len(news)} actualités trouvées pour {mois}")
             st.subheader("Liste des actualités")
             for n in news:
@@ -33,7 +38,7 @@ else:
             st.info("Aucune actualité trouvée ou analyse impossible.")
 
         st.subheader("Impacts géopolitiques détectés (zones géographiques)")
-        if impacts:
+        if impacts and len(impacts) > 0:
             st.dataframe([
                 {
                     "Zone": imp.get("zone", ""),
