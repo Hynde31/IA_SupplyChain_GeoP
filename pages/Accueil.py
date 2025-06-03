@@ -7,24 +7,25 @@ st.markdown("""
 Pour accéder à votre dashboard personnalisé, entrez un ou plusieurs codes MRP (identifiants SAP de vos articles ou familles fournisseurs).
 """)
 
-def go_to_dashboard():
-    if st.session_state.get("mrp_input", "").strip():
-        st.session_state["mrp_codes"] = [
-            code.strip().upper()
-            for code in st.session_state["mrp_input"].split(",")
-            if code.strip()
-        ]
-        st.switch_page("pages/Dashboard.py")
-
-st.text_input(
+# Saisie : le key doit être fixé pour session_state
+mrp_input = st.text_input(
     "Entrez un ou plusieurs codes MRP (séparés par virgule)",
-    key="mrp_input",
-    on_change=go_to_dashboard
+    key="mrp_input"
 )
 
-if st.button("Valider"):
-    go_to_dashboard()
+# Si validation par bouton ou entrée (on_change), on stocke et la page va rediriger au prochain run
+if st.button("Valider") or (mrp_input and 'mrp_codes' not in st.session_state and st.session_state["mrp_input"].strip()):
+    st.session_state["mrp_codes"] = [
+        code.strip().upper()
+        for code in st.session_state["mrp_input"].split(",")
+        if code.strip()
+    ]
+    st.experimental_rerun()  # Force le reload pour activer la redirection ci-dessous
 
-# Optionnel : bouton pour passer à la page suivante même sans saisie valide
+# Si le portefeuille est saisi, on redirige
+if "mrp_codes" in st.session_state:
+    st.switch_page("pages/Dashboard.py")
+
+# Optionnel : bouton pour forcer la page suivante même sans MRP (pour test/accès direct)
 if st.button("Page suivante ➡️"):
     st.switch_page("pages/Dashboard.py")
