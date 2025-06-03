@@ -11,7 +11,7 @@ def download_model(model_name):
     try:
         spacy.load(model_name)
     except OSError:
-        subprocess.run(["python", "-m", "spacy", "download", model_name])
+        subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
 
 download_model("fr_core_news_sm")
 download_model("en_core_web_sm")
