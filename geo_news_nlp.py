@@ -4,8 +4,18 @@ import streamlit as st
 from collections import defaultdict
 import re
 from datetime import datetime
+import subprocess
 
-# Modèle spaCy léger et cache Streamlit
+# Téléchargement automatique des modèles spaCy si besoin
+def download_model(model_name):
+    try:
+        spacy.load(model_name)
+    except OSError:
+        subprocess.run(["python", "-m", "spacy", "download", model_name])
+
+download_model("fr_core_news_sm")
+download_model("en_core_web_sm")
+
 @st.cache_resource
 def get_nlp():
     try:
@@ -38,18 +48,15 @@ RSS_FEEDS = [
     "https://www.lemonde.fr/international/rss_full.xml"
 ]
 
-# Cache RSS avec Streamlit, TTL 1h
 @st.cache_data(ttl=3600)
 def fetch_feed(feed_url):
     return feedparser.parse(feed_url)
 
 def get_news_for_period(period_yyyymm, max_news_per_feed=5):
-    """ Récupère et filtre les news pour le mois/période voulue (max limité) """
     period_dt = datetime.strptime(period_yyyymm, "%Y-%m")
     filtered_news = []
     for feed_url in RSS_FEEDS:
         feed = fetch_feed(feed_url)
-        # Limite le nombre de news analysées par flux
         for entry in feed.entries[:max_news_per_feed]:
             try:
                 if hasattr(entry, "published_parsed") and entry.published_parsed:
@@ -69,7 +76,6 @@ def get_news_for_period(period_yyyymm, max_news_per_feed=5):
     return filtered_news
 
 def extract_geo_and_impact(news_items):
-    """ Analyse les news et détecte zones géographiques + impact (sans géocodage réseau) """
     impact_dict = defaultdict(lambda: {"impact": 0, "lat": None, "lon": None, "news": []})
     for news in news_items:
         txt = (news["title"] + " " + news["summary"]).replace('&quot;', '"')
@@ -94,15 +100,10 @@ def extract_geo_and_impact(news_items):
     return impacts
 
 def get_news_impact_for_month(month_str):
-    """
-    Fonction principale à consommer depuis Streamlit :
-    - Retourne les news et les impacts détectés pour un mois/année donné.
-    """
     news = get_news_for_period(month_str)
     impacts = extract_geo_and_impact(news)
     return news, impacts
 
-# Exemple d'utilisation locale
 if __name__ == "__main__":
     month = "2025-05"
     news, impacts = get_news_impact_for_month(month)
