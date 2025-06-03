@@ -7,7 +7,6 @@ from datetime import datetime
 import subprocess
 
 def try_download_and_load(model_name):
-    """Essaye de télécharger et charger un modèle spaCy, retourne None si échec."""
     try:
         return spacy.load(model_name)
     except OSError:
@@ -19,14 +18,13 @@ def try_download_and_load(model_name):
 
 @st.cache_resource
 def get_nlp():
-    # Essaye le modèle français, puis anglais, sinon None
     nlp = try_download_and_load("fr_core_news_sm")
     if nlp is None:
         st.warning("Le modèle spaCy 'fr_core_news_sm' n'est pas disponible, passage à l'anglais.")
         nlp = try_download_and_load("en_core_web_sm")
     if nlp is None:
-        st.error("Aucun modèle spaCy compatible n'a pu être chargé. Analyse NLP désactivée.")
-        raise RuntimeError("No spaCy model available")
+        st.error("Aucun modèle spaCy compatible n'a pu être chargé. Les fonctionnalités de veille géopolitique sont désactivées.")
+        return None
     return nlp
 
 nlp = get_nlp()
@@ -59,7 +57,6 @@ def fetch_feed(feed_url):
     return feedparser.parse(feed_url)
 
 def get_news_for_period(period_yyyymm, max_news_per_feed=5):
-    """ Récupère et filtre les news pour le mois/période voulue (max limité) """
     period_dt = datetime.strptime(period_yyyymm, "%Y-%m")
     filtered_news = []
     for feed_url in RSS_FEEDS:
@@ -83,7 +80,9 @@ def get_news_for_period(period_yyyymm, max_news_per_feed=5):
     return filtered_news
 
 def extract_geo_and_impact(news_items):
-    """ Analyse les news et détecte zones géographiques + impact (sans géocodage réseau) """
+    if nlp is None:
+        st.warning("NLP désactivé : impossible d’analyser les news.")
+        return []
     impact_dict = defaultdict(lambda: {"impact": 0, "lat": None, "lon": None, "news": []})
     for news in news_items:
         txt = (news["title"] + " " + news["summary"]).replace('&quot;', '"')
@@ -108,15 +107,12 @@ def extract_geo_and_impact(news_items):
     return impacts
 
 def get_news_impact_for_month(month_str):
-    """
-    Fonction principale à consommer depuis Streamlit :
-    - Retourne les news et les impacts détectés pour un mois/année donné.
-    """
     news = get_news_for_period(month_str)
+    if nlp is None:
+        return news, []
     impacts = extract_geo_and_impact(news)
     return news, impacts
 
-# Exemple d'utilisation locale
 if __name__ == "__main__":
     month = "2025-05"
     news, impacts = get_news_impact_for_month(month)
