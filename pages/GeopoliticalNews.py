@@ -91,8 +91,3 @@ else:
     st.info("Sélectionnez un portefeuille, entrez un mois et cliquez sur Analyser.")
 
 st.markdown("""
----
-**Astuce :**  
-Dans le mapping, le portefeuille "COE MRP EBE" comporte le fournisseur Intel, dont un site de production réel est à Kyriat Gat (Israël).
-Si une actualité concerne Israël ou Kyriat Gat, elle remontera pour ce portefeuille.
-""")
