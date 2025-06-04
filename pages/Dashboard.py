@@ -5,13 +5,13 @@ from utils import risk_gauge, kpi_card
 
 st.set_page_config(page_title="Dashboard Supply Chain", layout="wide")
 
-# ---------- 0. Sélection du portefeuille ----------
+# 0. Sélection du portefeuille
 mrp_codes = st.session_state.get("mrp_codes", [])
 if not mrp_codes:
     st.warning("Vous devez d'abord définir votre portefeuille MRP sur la page Accueil.")
     st.stop()
 
-# ---------- 1. Construction du DataFrame principal ----------
+# 1. Construction du DataFrame principal
 def flatten_suppliers(suppliers, mrp_codes):
     rows = []
     for s in suppliers:
@@ -41,7 +41,7 @@ if df.empty:
     st.info("Aucun fournisseur trouvé pour les codes MRP sélectionnés.")
     st.stop()
 
-# ---------- 2. Calculs des indicateurs (KPI) ----------
+# 2. Calculs des indicateurs (KPI)
 nb_mrp = df["MRP Code"].nunique()
 nb_fournisseurs = df["Fournisseur"].nunique()
 nb_pays = df["Pays"].nunique()
@@ -56,7 +56,6 @@ score_risque_moyen = (
 ruptures_cours = (df["Stock Jours"] < 2).sum()
 dual_sourcing_pct = round(100 * (df["Dual sourcing"]=="Oui").sum() / len(df), 1) if len(df) > 0 else 0
 
-# ---------- 3. Affichage KPI Portefeuille ----------
 st.title("KPI Portefeuille - Supply Chain")
 kpi1, kpi2, kpi3, kpi4, kpi5, kpi6, kpi7, kpi8 = st.columns(8)
 kpi1.metric("MRP codes suivis", nb_mrp)
@@ -70,23 +69,27 @@ kpi8.metric("Pays couverts", nb_pays)
 
 st.divider()
 
-# ---------- 4. Carte interactive ----------
+# 4. Carte interactive : fournisseurs + zones géopolitiques
 st.subheader("Carte des fournisseurs & zones à risque géopolitique")
-if not df.empty and df[["latitude", "longitude"]].notnull().all().all():
-    st.map(df[["latitude", "longitude"]])
-else:
-    st.info("Aucun site localisé pour ce portefeuille.")
+zones_geopol = pd.DataFrame([
+    {"label": "Mer Rouge (Blocage maritime)", "lat": 16.3, "lon": 42.6},
+    {"label": "Ukraine (Conflit armé)", "lat": 48.4, "lon": 31.2},
+    {"label": "Taïwan (Tensions Chine/USA)", "lat": 23.7, "lon": 121.0},
+])
+# Renommage pour concat
+map_fournisseurs = df[["latitude", "longitude"]].rename(columns={"latitude": "lat", "longitude": "lon"})
+map_fournisseurs["label"] = "Fournisseur"
+map_total = pd.concat([map_fournisseurs, zones_geopol], ignore_index=True)
+st.map(map_total[["lat", "lon"]])
+st.caption(":red[⚠️ Les points hors fournisseurs sont les zones géopolitiques à risque.]")
 
 st.divider()
 
-# ---------- 5. Vue Approvisionneur (MRP x Fournisseur) ----------
 st.header("Vision Approvisionneur : Statuts MRP / Fournisseurs")
-# Ajout des alertes
 df["ALERTE"] = ""
 df.loc[df["Stock Jours"] < 5, "ALERTE"] += "⚠️ Stock bas "
 df.loc[df["OTD (%)"] < 85, "ALERTE"] += "⚠️ Retard "
 df.loc[df["Stock Jours"] < 2, "ALERTE"] += "❗ Rupture imminente "
-
 st.dataframe(
     df[
         ["MRP Code", "Désignation", "Fournisseur", "Site", "Pays", "Stock Jours", "OTD (%)", "Dual sourcing", "Criticité", "Lead time (j)", "Incidents", "ALERTE"]
@@ -95,9 +98,6 @@ st.dataframe(
     hide_index=True
 )
 
-# ----------- Fin de la partie Dashboard : plus d'alertes géopolitiques ici -----------
-
-# ---------- 6. Navigation ----------
 st.divider()
 col1, col2 = st.columns([1, 1])
 with col1:
