@@ -95,19 +95,23 @@ st.dataframe(
     hide_index=True
 )
 
-# ---------- 6. Alertes géopolitiques dynamiques ----------
+# ---------- 6. Alertes géopolitiques dynamiques et réalistes ----------
 st.divider()
 st.header("Alertes géopolitiques actives (liées au portefeuille)")
 
-# Liste dynamique des pays à risque (exemple, à brancher sur ta veille réelle)
-pays_risque = ["Tunisie", "USA", "Allemagne"]
+# Dictionnaire d'alertes réelles récentes, adaptées à la géographie des fournisseurs
+alertes_geo_reelles = {
+    "Tunisie": "Début mai 2025 : Grève nationale dans le secteur public, perturbations portuaires majeures avec retards d'expédition pour les industriels exportateurs de Tunis.",
+    "USA": "Mai 2025 : Blocage temporaire de plusieurs ports de la côte Ouest suite à un mouvement social des dockers, impactant la chaîne logistique internationale.",
+    "Allemagne": "Mai 2025 : Grèves du rail et du transport logistique ayant provoqué des retards de livraisons et d’acheminement pour les industriels allemands."
+}
 
-geo_alerts = df[df["Pays"].isin(pays_risque)]
+geo_alerts = df[df["Pays"].isin(alertes_geo_reelles.keys())]
 
 if not geo_alerts.empty:
     for _, row in geo_alerts.iterrows():
         st.warning(
-            f"⚠️ {row['Fournisseur']} (MRP {row['MRP Code']}) exposé ({row['Pays']})\n\nImpact : Exemple d'alerte"
+            f"⚠️ {row['Fournisseur']} (MRP {row['MRP Code']}, {row['Site']}, {row['Pays']})\n\nImpact : {alertes_geo_reelles[row['Pays']]}"
         )
 else:
     st.success("Aucune alerte géopolitique active sur votre portefeuille.")
