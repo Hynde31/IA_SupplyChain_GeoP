@@ -105,4 +105,4 @@ with col1:
         st.switch_page("Accueil.py")
 with col2:
     if st.button("Veille géopolitique ➡️"):
-st.switch_page("GeopoliticalNews.py")
+        st.switch_page("GeopoliticalNews.py")
