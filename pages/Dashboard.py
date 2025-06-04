@@ -1,182 +1,106 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+from suppliers_data import SUPPLIERS
+from utils import risk_gauge, kpi_card
 
 st.set_page_config(page_title="Dashboard Supply Chain", layout="wide")
 
+# ---------- Récupération des MRP codes sélectionnés ----------
+mrp_codes = st.session_state.get("mrp_codes", [])
+if not mrp_codes:
+    st.warning("Vous devez d'abord définir votre portefeuille MRP sur la page Accueil.")
+    st.stop()
+
+# ---------- Construction DataFrame principal à partir de suppliers_data.py ----------
+def flatten_suppliers(suppliers, mrp_codes):
+    rows = []
+    for s in suppliers:
+        if s["mrp_code"] not in mrp_codes:
+            continue
+        for site in s["sites"]:
+            rows.append({
+                "MRP Code": s["mrp_code"],
+                "Désignation": s["component"],
+                "Fournisseur": s["name"],
+                "Criticité": s["criticality"],
+                "Dual sourcing": "Oui" if s["dual_sourcing"] else "Non",
+                "Site": site["city"],
+                "Pays": site["country"],
+                "Stock Jours": site["stock_days"],
+                "Retards (j)": 0,  # optionnel, non fourni, à calculer si tu as l'info
+                "OTD": f"{site['on_time_delivery']}%",
+                "OTD_num": site["on_time_delivery"],
+                "Lead time (j)": site["lead_time"],
+                "Incidents": site["incidents"],
+                "latitude": site["lat"],
+                "longitude": site["lon"],
+            })
+    return pd.DataFrame(rows)
+
+df = flatten_suppliers(SUPPLIERS, mrp_codes)
+
+# ---------- Calcul KPI dynamiques ----------
+nb_mrp = df["MRP Code"].nunique()
+nb_fournisseurs = df["Fournisseur"].nunique()
+nb_pays = df["Pays"].nunique()
+nb_sites_risque = ((df["OTD_num"] < 85) | (df["Stock Jours"] < 5)).sum()
+otd_moyen = round(df["OTD_num"].mean(), 1) if not df.empty else 0
+score_risque_moyen = (
+    (1 - df["OTD_num"]/100)
+    + (df["Incidents"]/10)
+    + (1 - df["Stock Jours"]/60)*0.5
+    + (df["Lead time (j)"]/150)*0.5
+).mean() if not df.empty else 0
+ruptures_cours = (df["Stock Jours"] < 2).sum()
+dual_sourcing_pct = round(100 * (df["Dual sourcing"]=="Oui").sum() / len(df), 1) if len(df) > 0 else 0
+
 # ---------- 1. KPI Portefeuille ----------
 st.title("KPI Portefeuille - Supply Chain")
-
-# Données fictives pour l'exemple (à remplacer par tes requêtes réelles)
-nb_mrp = 5
-nb_fournisseurs = 8
-nb_risque = 2
-otd_moyen = 94.2
-score_risque_moyen = 1.8
-ruptures_cours = 1
-dual_sourcing_pct = 65
-nb_pays = 6
-
 kpi1, kpi2, kpi3, kpi4, kpi5, kpi6, kpi7, kpi8 = st.columns(8)
 kpi1.metric("MRP codes suivis", nb_mrp)
 kpi2.metric("Fournisseurs actifs", nb_fournisseurs)
-kpi3.metric("Sites à risque élevé", nb_risque)
+kpi3.metric("Sites à risque élevé", nb_sites_risque)
 kpi4.metric("On-Time Delivery", f"{otd_moyen}%")
 kpi5.metric("Ruptures en cours", ruptures_cours)
 kpi6.metric("Score risque moyen", f"{score_risque_moyen:.2f}")
 kpi7.metric("Dual sourcing", f"{dual_sourcing_pct}%")
 kpi8.metric("Pays couverts", nb_pays)
-
 st.divider()
 
 # ---------- 2. Carte interactive ----------
 st.subheader("Carte des fournisseurs & zones à risque géopolitique")
-# Données de localisation fictives pour la carte
-carte_data = pd.DataFrame({
-    "lat": [48.866667, 52.520008, 41.902782, 51.165691, 40.416775, 34.052235],
-    "lon": [2.333333, 13.404954, 12.496366, 10.451526, -3.703790, -118.243683],
-    "Fournisseur": [
-        "Valeo", "Bosch", "Magneti Marelli", "Continental", "Gestamp", "Lear Corp."
-    ],
-    "Ville": [
-        "Paris", "Berlin", "Rome", "Hanovre", "Madrid", "Los Angeles"
-    ],
-    "Risque": ["Faible", "Élevé", "Moyen", "Élevé", "Faible", "Moyen"]
-})
-st.map(carte_data)
+if not df.empty and df[["latitude", "longitude"]].notnull().all().all():
+    st.map(df[["latitude", "longitude"]])
+else:
+    st.info("Aucun site localisé pour ce portefeuille.")
 
 st.divider()
 
 # ---------- 3. Vue Approvisionneur (MRP x Fournisseur) ----------
 st.header("Vision Approvisionneur : Statuts MRP / Fournisseurs")
+# Ajout des alertes
+df["ALERTE"] = ""
+df.loc[df["Stock Jours"] < 5, "ALERTE"] += "⚠️ Stock bas "
+df.loc[df["OTD_num"] < 85, "ALERTE"] += "⚠️ Retard "
+df.loc[df["Stock Jours"] < 2, "ALERTE"] += "❗ Rupture imminente "
 
-# Exemple de structure MRP codes, chaque MRP code ayant plusieurs fournisseurs
-# (Remplace par tes vraies données)
-df_mrp_fourn = pd.DataFrame([
-    {
-        "MRP Code": "MRP001",
-        "Désignation": "Moteur électrique",
-        "Fournisseur": "Valeo",
-        "Site": "Paris",
-        "Contact": "contact@valeo.com",
-        "Stock Jours": 4,
-        "Retards (j)": 0,
-        "OTD": "98%",
-        "Dual sourcing": "Oui",
-        "Criticité": "Haute",
-        "ALERTE": ""
-    },
-    {
-        "MRP Code": "MRP001",
-        "Désignation": "Moteur électrique",
-        "Fournisseur": "Bosch",
-        "Site": "Berlin",
-        "Contact": "logistique@bosch.com",
-        "Stock Jours": 2,
-        "Retards (j)": 2,
-        "OTD": "84%",
-        "Dual sourcing": "Oui",
-        "Criticité": "Haute",
-        "ALERTE": "⚠️ Stock bas & Retard"
-    },
-    {
-        "MRP Code": "MRP002",
-        "Désignation": "Calculateur moteur",
-        "Fournisseur": "Continental",
-        "Site": "Hanovre",
-        "Contact": "supply@continental.com",
-        "Stock Jours": 6,
-        "Retards (j)": 0,
-        "OTD": "99%",
-        "Dual sourcing": "Non",
-        "Criticité": "Très haute",
-        "ALERTE": ""
-    },
-    {
-        "MRP Code": "MRP003",
-        "Désignation": "Batterie lithium",
-        "Fournisseur": "Magneti Marelli",
-        "Site": "Rome",
-        "Contact": "appro@marelli.com",
-        "Stock Jours": 3,
-        "Retards (j)": 1,
-        "OTD": "90%",
-        "Dual sourcing": "Oui",
-        "Criticité": "Haute",
-        "ALERTE": "⚠️ Retard"
-    },
-    {
-        "MRP Code": "MRP004",
-        "Désignation": "Châssis",
-        "Fournisseur": "Gestamp",
-        "Site": "Madrid",
-        "Contact": "espana@gestamp.com",
-        "Stock Jours": 8,
-        "Retards (j)": 0,
-        "OTD": "96%",
-        "Dual sourcing": "Oui",
-        "Criticité": "Moyenne",
-        "ALERTE": ""
-    },
-    {
-        "MRP Code": "MRP004",
-        "Désignation": "Châssis",
-        "Fournisseur": "Lear Corp.",
-        "Site": "Los Angeles",
-        "Contact": "us@lear.com",
-        "Stock Jours": 5,
-        "Retards (j)": 0,
-        "OTD": "97%",
-        "Dual sourcing": "Oui",
-        "Criticité": "Moyenne",
-        "ALERTE": ""
-    },
-    {
-        "MRP Code": "MRP005",
-        "Désignation": "Connecteurs",
-        "Fournisseur": "Delphi",
-        "Site": "Luxembourg",
-        "Contact": "lux@delphi.com",
-        "Stock Jours": 1,
-        "Retards (j)": 3,
-        "OTD": "82%",
-        "Dual sourcing": "Non",
-        "Criticité": "Haute",
-        "ALERTE": "⚠️ Rupture imminente"
-    },
-    {
-        "MRP Code": "MRP002",
-        "Désignation": "Calculateur moteur",
-        "Fournisseur": "Valeo",
-        "Site": "Paris",
-        "Contact": "contact@valeo.com",
-        "Stock Jours": 5,
-        "Retards (j)": 0,
-        "OTD": "97%",
-        "Dual sourcing": "Non",
-        "Criticité": "Très haute",
-        "ALERTE": ""
-    },
-])
-
-# Pour la lisibilité, on affiche par MRP puis fournisseur
 st.dataframe(
-    df_mrp_fourn[
-        ["MRP Code", "Désignation", "Fournisseur", "Site", "Contact", "Stock Jours", "Retards (j)", "OTD", "Dual sourcing", "Criticité", "ALERTE"]
+    df[
+        ["MRP Code", "Désignation", "Fournisseur", "Site", "Pays", "Stock Jours", "OTD", "Dual sourcing", "Criticité", "Lead time (j)", "Incidents", "ALERTE"]
     ],
     use_container_width=True,
     hide_index=True
 )
 
-# ----------- 4. Alertes géopolitiques -----------
+# ----------- 4. Alertes géopolitiques (placeholders dynamiques) -----------
 st.divider()
 st.header("Alertes géopolitiques actives (liées au portefeuille)")
-
+# Cette section est à brancher sur tes vrais résultats de veille géopolitique
 geo_alerts = [
-    {"MRP Code": "MRP004", "Fournisseur": "Gestamp", "Zone": "Espagne", "Impact": "Blocage temporaire des routes"},
-    {"MRP Code": "MRP001", "Fournisseur": "Bosch", "Zone": "Allemagne", "Impact": "Tensions politiques et logistiques"}
+    # Exemples à remplacer par une vraie détection
+    {"MRP Code": row["MRP Code"], "Fournisseur": row["Fournisseur"], "Zone": row["Pays"], "Impact": "Exemple d'alerte"}
+    for _, row in df.iterrows() if row["Pays"] in ["Tunisie", "USA", "Allemagne"]  # à adapter selon détection réelle
 ]
-
 if geo_alerts:
     for alert in geo_alerts:
         st.warning(
@@ -190,7 +114,7 @@ st.divider()
 col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("🏠 Accueil"):
-        st.switch_page("app.py")
+        st.switch_page("pages/Accueil.py")
 with col2:
     if st.button("Veille géopolitique ➡️"):
         st.switch_page("pages/GeopoliticalNews.py")
