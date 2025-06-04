@@ -1,28 +1,32 @@
 import streamlit as st
-st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
 
+st.set_page_config(page_title="Veille géopolitique Supply Chain", layout="wide")
 st.title("Veille géopolitique et détection d'impacts Supply Chain")
 
-# Liste des mois 2025 de janvier à décembre (ordre chronologique)
 months = [f"2025-{m:02}" for m in range(1, 13)]
 
-# Teste la disponibilité de la fonction d'analyse NLP
 NLP_AVAILABLE = True
+msg = ""
 try:
     from geo_news_nlp import get_news_impact_for_month
-except Exception:
-    NLP_AVAILABLE = False
+except ImportError:
+    try:
+        import spacy
+        spacy.load("fr_core_news_sm")
+    except Exception:
+        try:
+            spacy.load("en_core_web_sm")
+            msg = "Le modèle spaCy 'fr_core_news_sm' n'est pas disponible, passage à l'anglais."
+        except Exception:
+            NLP_AVAILABLE = False
+            msg = ("Aucun modèle spaCy compatible n'a pu être chargé. Les fonctionnalités de veille géopolitique sont désactivées.")
 
 if not NLP_AVAILABLE:
-    st.error(
-        "Aucun modèle spaCy compatible n'a pu être chargé.\n\n"
-        "Les fonctionnalités de veille géopolitique sont désactivées.\n\n"
-        "Pour activer l'analyse, installe le modèle spaCy français avec :\n"
-        "`python -m spacy download fr_core_news_sm`"
-    )
+    st.error(msg)
 else:
+    if msg:
+        st.warning(msg)
     mois = st.selectbox("Sélectionnez le mois à analyser", months)
-
     if st.button("Lancer l'analyse"):
         with st.spinner("Chargement des actualités, analyse NLP et géocodage..."):
             news, impacts = get_news_impact_for_month(mois)
@@ -55,7 +59,6 @@ else:
     else:
         st.info("Cliquez sur le bouton ci-dessus pour lancer l'analyse.")
 
-# Navigation boutons
 col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("⬅️ Dashboard"):
