@@ -26,8 +26,8 @@ if st.button("Valider"):
     valid_mrp_input()
 
 # Redirection automatique si un portefeuille est présent
-if "mrp_codes" in st.session_state:
-    st.switch_page("pages/Dashboard.py")
+if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
+    st.switch_page("Dashboard.py")
 
 if st.button("Page suivante ➡️"):
-    st.switch_page("pages/Dashboard.py")
+    st.switch_page("Dashboard.py")
