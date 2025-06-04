@@ -117,7 +117,7 @@ st.divider()
 col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("🏠 Accueil"):
-        st.switch_page("pages/Accueil.py")
+        st.switch_page("Accueil.py")
 with col2:
     if st.button("Veille géopolitique ➡️"):
-        st.switch_page("pages/GeopoliticalNews.py")
+        st.switch_page("GeopoliticalNews.py")
