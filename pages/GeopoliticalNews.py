@@ -59,7 +59,7 @@ else:
 col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("⬅️ Dashboard"):
-        st.switch_page("pages/Dashboard.py")
+        st.switch_page("Dashboard.py")
 with col2:
     if st.button("🏠 Accueil"):
-        st.switch_page("pages/Accueil.py")
+        st.switch_page("Accueil.py")
