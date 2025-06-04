@@ -8,7 +8,6 @@ Pour accéder à votre dashboard personnalisé, entrez un ou plusieurs codes MRP
 """)
 
 def valid_mrp_input():
-    # Stocke les codes dans la session si la saisie n'est pas vide
     if st.session_state["mrp_input"].strip():
         st.session_state["mrp_codes"] = [
             code.strip().upper()
@@ -25,7 +24,6 @@ st.text_input(
 if st.button("Valider"):
     valid_mrp_input()
 
-# Redirection automatique si un portefeuille est présent
 if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
     st.switch_page("Dashboard.py")
 
