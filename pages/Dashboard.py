@@ -24,7 +24,6 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
 df_sup = load_suppliers()
 df_sup = df_sup[df_sup["Portefeuille"].isin(mrp_codes)]
 
-# Géocodage fictif ou réel selon données disponibles
 QUICK_COORDS = {
     "Paris": (48.8566, 2.3522), "Lyon": (45.75, 4.85), "Berlin": (52.52, 13.4050),
     "Shanghai": (31.2304, 121.4737), "Chicago": (41.8781, -87.6298), "Izmir": (38.4192, 27.1287),
@@ -36,7 +35,6 @@ def geocode_city(city, country):
     coords = QUICK_COORDS.get(city) or QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
-# Remplissage des coordonnées
 if not df_sup.empty:
     coords = df_sup.apply(lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1)
     coords.columns = ["latitude", "longitude"]
@@ -45,7 +43,6 @@ else:
     df_sup["latitude"] = []
     df_sup["longitude"] = []
 
-# Fournisseurs pour carte
 df_fournisseurs_map = df_sup.dropna(subset=["latitude", "longitude"]).copy()
 df_fournisseurs_map["type"] = "Fournisseur"
 df_fournisseurs_map["label"] = df_fournisseurs_map["Fournisseur"]
@@ -53,14 +50,10 @@ df_fournisseurs_map["Couleur"] = [[0, 102, 204]] * len(df_fournisseurs_map)
 df_fournisseurs_map["Impact"] = "Approvisionnement"
 df_fournisseurs_map["Criticité"] = "Élevée"
 
-# Zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo = df_geo.reindex(columns=df_fournisseurs_map.columns, fill_value="-")
-
-# Fusion pour carte
 df_map = pd.concat([df_fournisseurs_map, df_geo], ignore_index=True)
 
-# Carte pydeck
 if not df_map.empty:
     center_lat, center_lon = df_map["latitude"].astype(float).mean(), df_map["longitude"].astype(float).mean()
 else:
@@ -104,7 +97,6 @@ st.caption(":blue[• Fournisseurs]  |  :orange[• Zones à risque géopolitiqu
 
 st.divider()
 
-# KPIs
 nb_mrp = df_sup["Portefeuille"].nunique()
 nb_fournisseurs = df_sup["Fournisseur"].nunique()
 nb_pays = df_sup["Pays"].nunique()
@@ -128,7 +120,6 @@ kpi8.metric("Pays couverts", nb_pays)
 
 st.divider()
 
-# Tableau Approvisionneur, valeurs par défaut si manquantes
 for col in ["Portefeuille", "Pièce", "Fournisseur", "Site prod", "Pays", "Ville"]:
     if col not in df_sup.columns:
         df_sup[col] = "-"
