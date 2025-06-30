@@ -2,46 +2,66 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 from geo_zones import ZONES_GEO
+from ai_models import geopolitical_risk_score
 
-# Mapping code technique -> code affiché
-MRP_LABELS = {
-    "MRP1": "HEL",
-    "MRP2": "EBE",
-    "MRP3": "DWI"
-}
-
-st.set_page_config(page_title="Dashboard Supply Chain", layout="wide")
-
-mrp_codes = st.session_state.get("mrp_codes", [])
-mrp_labels = [MRP_LABELS.get(code, code) for code in mrp_codes]
-
-if not mrp_codes:
-    st.warning("Vous devez d'abord définir votre portefeuille MRP sur la page Accueil.")
-    st.stop()
+st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     df = pd.read_csv(path)
-    df["Portefeuille"] = df["Portefeuille"].str.upper().str.strip()
-    df["Site prod"] = df.get("Site prod", pd.Series("-")).fillna("-")
-    df["Pièce"] = df.get("Pièce", pd.Series("-")).fillna("-")
-    df["Fournisseur"] = df.get("Fournisseur", pd.Series("-")).fillna("-")
-    df["Pays"] = df.get("Pays", pd.Series("-")).fillna("-")
-    df["Ville"] = df.get("Ville", pd.Series("-")).fillna("-")
+    df = df.fillna("")
     return df
 
 df_sup = load_suppliers()
-df_sup_filtered = df_sup[df_sup["Portefeuille"].isin(mrp_codes)].copy()
-df_sup_filtered["Nom Portefeuille"] = df_sup_filtered["Portefeuille"].map(MRP_LABELS)
+if df_sup.empty:
+    st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
+    st.stop()
 
-# ... (le reste du code pour la carte, les KPIs, le tableau...)
+# Scoring IA
+df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
+df_sup["Score (%)"] = (df_sup["Score risque géopolitique"]*100).round(1)
+df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK"))
 
-# Pour la table finale :
-st.header("Vision Approvisionneur : Statuts MRP / Fournisseurs")
+# Carte
+cities_coords = {
+    "Toulouse": (43.6047, 1.4442), "Hambourg": (53.5511, 9.9937), "Tianjin": (39.3434, 117.3616),
+    "France": (46.6, 1.88), "Allemagne": (51.1657, 10.4515), "Chine": (35.8617, 104.1954)
+}
+coords = df_sup.apply(lambda r: pd.Series(cities_coords.get(r["Ville"], cities_coords.get(r["Pays"], (None, None)))), axis=1)
+coords.columns = ["latitude", "longitude"]
+df_sup = pd.concat([df_sup, coords], axis=1)
+
+df_sup_display = df_sup.dropna(subset=["latitude", "longitude"])
+df_sup_display["Couleur"] = df_sup_display["Score risque géopolitique"].apply(
+    lambda s: [220,30,30] if s>=0.7 else ([255,215,0] if s>=0.5 else [0,180,80])
+)
+df_sup_display["type"] = "Fournisseur"
+
+# Ajout zones géo
+df_geo = pd.DataFrame(ZONES_GEO)
+df_geo = df_geo.reindex(columns=df_sup_display.columns, fill_value="-")
+df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
+
+layer = pdk.Layer(
+    "ScatterplotLayer",
+    data=df_map,
+    get_position='[longitude, latitude]',
+    get_color="Couleur",
+    get_radius=50000,
+    pickable=True,
+    auto_highlight=True,
+)
+center_lat, center_lon = df_map["latitude"].astype(float).mean(), df_map["longitude"].astype(float).mean()
+view_state = pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=2.1, pitch=0)
+tooltip = {"html": "<b>Type:</b> {type}<br><b>Nom:</b> {Fournisseur}<br><b>Pays:</b> {Pays}<br><b>Score risque:</b> {Score (%)}/100<br><b>Alerte:</b> {Alerte}", "style": {"backgroundColor": "#262730", "color": "white"}}
+
+st.subheader("Carte interactive des fournisseurs et zones")
+st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
+st.caption(":green[• Risque faible]  |  :yellow[• Risque moyen]  |  :red[• Risque critique]  |  :orange[• Zones géopolitiques]")
+
+st.divider()
+st.subheader("Tableau de suivi et alertes IA")
 st.dataframe(
-    df_sup_filtered[
-        ["Nom Portefeuille", "Pièce", "Fournisseur", "Site prod", "Pays", "Ville"]
-    ].rename(columns={"Nom Portefeuille": "Portefeuille"}),
-    use_container_width=True,
-    hide_index=True
+    df_sup[["Portefeuille", "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte"]],
+    use_container_width=True, hide_index=True
 )
