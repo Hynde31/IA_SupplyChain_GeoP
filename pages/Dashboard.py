@@ -12,7 +12,7 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     df = df.fillna("")
     return df
 
-# Dictionnaire coordonnées villes/fournisseurs
+# Dictionnaire coordonnées villes/fournisseurs (à compléter si besoin)
 cities_coords = {
     "Kyriat Gat": (31.6097, 34.7604),
     "Rousset": (43.4285, 5.5872),
@@ -50,6 +50,12 @@ df_geo = pd.DataFrame(ZONES_GEO)
 df_geo = df_geo.reindex(columns=df_sup_display.columns, fill_value="-")
 df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
 
+# Sécurisation de la conversion en float
+center_lat = pd.to_numeric(df_map["Latitude"], errors="coerce").mean()
+center_lon = pd.to_numeric(df_map["Longitude"], errors="coerce").mean()
+if pd.isna(center_lat) or pd.isna(center_lon):
+    center_lat, center_lon = 0, 0  # fallback
+
 layer = pdk.Layer(
     "ScatterplotLayer",
     data=df_map,
@@ -59,7 +65,6 @@ layer = pdk.Layer(
     pickable=True,
     auto_highlight=True,
 )
-center_lat, center_lon = df_map["Latitude"].astype(float).mean(), df_map["Longitude"].astype(float).mean()
 view_state = pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=2.1, pitch=0)
 tooltip = {
     "html": "<b>Type:</b> {type}<br><b>Nom:</b> {Fournisseur}<br><b>Pays:</b> {Pays}<br><b>Ville:</b> {Ville}<br><b>Score risque:</b> {Score (%)}/100<br><b>Alerte:</b> {Alerte}",
