@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
+import numpy as np
 from geo_zones import ZONES_GEO
 from ai_models import geopolitical_risk_score
 
@@ -12,7 +13,6 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     df = df.fillna("")
     return df
 
-# Dictionnaire coordonnées villes/fournisseurs (à compléter au besoin)
 cities_coords = {
     "Kyriat Gat": (31.6097, 34.7604),
     "Rousset": (43.4285, 5.5872),
@@ -25,7 +25,6 @@ cities_coords = {
     "Kyoto": (35.0116, 135.7681)
 }
 
-# Couleurs par portefeuille MRP
 mrp_colors = {
     "HEL": [57, 106, 177],
     "EBE": [218, 124, 48],
@@ -38,7 +37,6 @@ if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
     st.stop()
 
-# Lecture du portefeuille sélectionné sur la page d'accueil
 if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
     mrp_selected = [str(code).strip().upper() for code in st.session_state["mrp_codes"]]
 else:
@@ -47,11 +45,13 @@ else:
 
 df_sup["Portefeuille"] = df_sup["Portefeuille"].astype(str).str.strip().str.upper()
 df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
-
-# Ajoute colonnes latitude/longitude pour chaque fournisseur (si connues)
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[0])
 df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[1])
-df_sup["Coordonnée connue"] = df_sup["Ville"].map(lambda v: v in cities_coords)
+
+# Nettoyage des coordonnées
+df_sup["Latitude"] = pd.to_numeric(df_sup["Latitude"], errors="coerce")
+df_sup["Longitude"] = pd.to_numeric(df_sup["Longitude"], errors="coerce")
+df_sup["Coordonnée connue"] = (~df_sup["Latitude"].isna()) & (~df_sup["Longitude"].isna())
 
 df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
 df_sup["Score (%)"] = (df_sup["Score risque géopolitique"]*100).round(1)
@@ -62,26 +62,21 @@ df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(
     lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"])
 )
 
-# Filtrage strict par portefeuille MRP choisi ET uniquement les fournisseurs géolocalisables
 df_sup_display = df_sup[
     (df_sup["Portefeuille"].isin(mrp_selected)) & (df_sup["Coordonnée connue"])
 ].copy()
-
 df_sup_display["type"] = "Fournisseur"
 
-# Ajout zones géopolitiques (affichées en orange/rouge)
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo["Couleur MRP"] = df_geo["Couleur"]
 df_geo["type"] = df_geo["type"]
 
 df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
 
-# Calcul du centre de la carte (sécurisé)
 if not df_sup_display.empty:
-    center_lat = pd.to_numeric(df_sup_display["Latitude"], errors="coerce").mean()
-    center_lon = pd.to_numeric(df_sup_display["Longitude"], errors="coerce").mean()
+    center_lat = df_sup_display["Latitude"].mean()
+    center_lon = df_sup_display["Longitude"].mean()
 else:
-    # fallback : centre France/Europe
     center_lat, center_lon = 46.7, 2.4
 
 layer = pdk.Layer(
@@ -120,8 +115,6 @@ if df_sup_display.empty:
         st.dataframe(villes_absentes, use_container_width=True, hide_index=True)
 else:
     st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
-
-    # Légende dynamique : uniquement les portefeuilles sélectionnés + zones géopolitiques/conflit
     legend_lines = ["**Légende carte :**"]
     color_hex = lambda rgb: f"rgb({rgb[0]},{rgb[1]},{rgb[2]})"
     for mrp in mrp_selected:
@@ -130,4 +123,15 @@ else:
             f'- <span style="color:{col};font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>{mrp}</b>'
         )
     legend_lines.append('- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>')
-    legend_lines
+    legend_lines.append('- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>')
+    st.markdown("\n".join(legend_lines), unsafe_allow_html=True)
+
+    st.divider()
+    st.subheader(f"📊 Fournisseurs du portefeuille {', '.join(mrp_selected)} localisables sur la carte")
+    st.dataframe(
+        df_sup_display[
+            ["Portefeuille", "Fournisseur", "Pays", "Ville", "Latitude", "Longitude", "Score (%)", "Alerte"]
+        ],
+        use_container_width=True,
+        hide_index=True
+    )
