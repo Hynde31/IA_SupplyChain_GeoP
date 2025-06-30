@@ -25,12 +25,12 @@ cities_coords = {
     "Kyoto": (35.0116, 135.7681)
 }
 
-# Couleurs par portefeuille MRP
+# Couleurs par portefeuille MRP (tu peux en ajouter autant que tu veux)
 mrp_colors = {
     "HEL": [57, 106, 177],
     "EBE": [218, 124, 48],
     "DWI": [62, 150, 81],
-    # Couleur par défaut
+    # Couleur par défaut si tu ajoutes d'autres portefeuilles
     "DEFAULT": [200, 200, 200],
 }
 
@@ -40,7 +40,6 @@ if df_sup.empty:
     st.stop()
 
 # Lecture du portefeuille sélectionné sur la page d'accueil
-mrp_selected = []
 if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
     mrp_selected = [str(code).strip().upper() for code in st.session_state["mrp_codes"]]
 else:
@@ -56,26 +55,31 @@ df_sup["Score (%)"] = (df_sup["Score risque géopolitique"]*100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
-df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(lambda x: mrp_colors.get(str(x).strip().upper(), mrp_colors["DEFAULT"]))
+df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(
+    lambda x: mrp_colors.get(str(x).strip().upper(), mrp_colors["DEFAULT"])
+)
 
-# Filtrage par portefeuille MRP choisi
+# Filtrage strict par portefeuille MRP choisi UNIQUEMENT
 df_sup_display = df_sup[
     df_sup["Portefeuille"].str.strip().str.upper().isin(mrp_selected)
 ].dropna(subset=["Latitude", "Longitude"])
 df_sup_display["type"] = "Fournisseur"
 
-# Ajout zones géopolitiques
+# Ajout zones géopolitiques (affichées en orange/rouge)
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo["Couleur MRP"] = df_geo["Couleur"]
 df_geo["type"] = df_geo["type"]
 
 df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
 
-# Sécurisation de la conversion en float
+# Calcul du centre de la carte (sécurisé)
 center_lat = pd.to_numeric(df_map["Latitude"], errors="coerce").mean()
 center_lon = pd.to_numeric(df_map["Longitude"], errors="coerce").mean()
 if pd.isna(center_lat) or pd.isna(center_lon):
     center_lat, center_lon = 0, 0  # fallback
+
+# Couleurs des portefeuilles sélectionnés pour la légende
+selected_mrp_colors = {k: v for k, v in mrp_colors.items() if k in mrp_selected}
 
 layer = pdk.Layer(
     "ScatterplotLayer",
@@ -104,15 +108,18 @@ tooltip = {
 st.subheader(f"🌍 Carte des fournisseurs du portefeuille {', '.join(mrp_selected)} et des zones à risque")
 st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
 
-# Nouvelle légende claire et explicite
-st.markdown("""
-**Légende carte :**
-- <span style="color:rgb(57,106,177);font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>HEL</b>
-- <span style="color:rgb(218,124,48);font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>EBE</b>
-- <span style="color:rgb(62,150,81);font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>DWI</b>
-- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>
-- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>
-""", unsafe_allow_html=True)
+# Légende dynamique : uniquement les portefeuilles sélectionnés + zones géopolitiques/conflit
+legend_lines = ["**Légende carte :**"]
+color_hex = lambda rgb: f"rgb({rgb[0]},{rgb[1]},{rgb[2]})"
+for mrp in mrp_selected:
+    col = color_hex(mrp_colors.get(mrp, mrp_colors["DEFAULT"]))
+    legend_lines.append(
+        f'- <span style="color:{col};font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>{mrp}</b>'
+    )
+legend_lines.append('- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>')
+legend_lines.append('- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>')
+
+st.markdown("\n".join(legend_lines), unsafe_allow_html=True)
 
 st.divider()
 st.subheader(f"📊 Fournisseurs du portefeuille {', '.join(mrp_selected)}")
