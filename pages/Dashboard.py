@@ -12,29 +12,34 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     df = df.fillna("")
     return df
 
+# Dictionnaire coordonnées villes/fournisseurs
+cities_coords = {
+    "Kyriat Gat": (31.6097, 34.7604),
+    "Rousset": (43.4285, 5.5872),
+    "Shizuoka": (34.9756, 138.3828),
+    "Bensheim": (49.6803, 8.6195),
+    "Haïfa": (32.7940, 34.9896),
+    "Angers": (47.4784, -0.5632),
+    "Shanghai": (31.2304, 121.4737),
+    "Beersheba": (31.2518, 34.7913),
+    "Kyoto": (35.0116, 135.7681)
+}
+
 df_sup = load_suppliers()
 if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
     st.stop()
 
-# Scoring IA
+# Ajoute colonnes latitude/longitude pour chaque fournisseur (si connues)
+df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[0])
+df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[1])
+
 df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
 df_sup["Score (%)"] = (df_sup["Score risque géopolitique"]*100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK"))
 
-# Carte : coordonnées pour villes/pays principaux
-cities_coords = {
-    "Meudon": (48.8131, 2.2350), "Valence": (44.9334, 4.8924), "Toulouse": (43.6047, 1.4442), "Olathe": (38.8814, -94.8191),
-    "Phoenix": (33.4484, -112.0740), "Haïfa": (32.7940, 34.9896), "Schwäbisch Hall": (49.1203, 9.7376),
-    "Tokyo": (35.6762, 139.6503), "Plaisir": (48.8275, 1.9533), "Nuremberg": (49.4521, 11.0767), "Rochefort": (45.9428, -0.9514),
-    "Lake Forest": (33.6469, -117.6892), "Villaroche": (48.6013, 2.6637), "Derby": (52.9225, -1.4746),
-    "Munich": (48.1351, 11.5820), "Cincinnati": (39.1031, -84.5120), "Middletown": (41.5623, -72.6506), "Hingham": (42.2418, -70.8898)
-}
-coords = df_sup.apply(lambda r: pd.Series(cities_coords.get(r["Ville"], (None, None))), axis=1)
-coords.columns = ["latitude", "longitude"]
-df_sup = pd.concat([df_sup, coords], axis=1)
-
-df_sup_display = df_sup.dropna(subset=["latitude", "longitude"])
+# Pour la carte, ne prend que ceux ayant latitude+longitude
+df_sup_display = df_sup.dropna(subset=["Latitude", "Longitude"])
 df_sup_display["Couleur"] = df_sup_display["Score risque géopolitique"].apply(
     lambda s: [220,30,30] if s>=0.7 else ([255,215,0] if s>=0.5 else [0,180,80])
 )
@@ -48,15 +53,18 @@ df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
 layer = pdk.Layer(
     "ScatterplotLayer",
     data=df_map,
-    get_position='[longitude, latitude]',
+    get_position='[Longitude, Latitude]',
     get_color="Couleur",
     get_radius=50000,
     pickable=True,
     auto_highlight=True,
 )
-center_lat, center_lon = df_map["latitude"].astype(float).mean(), df_map["longitude"].astype(float).mean()
+center_lat, center_lon = df_map["Latitude"].astype(float).mean(), df_map["Longitude"].astype(float).mean()
 view_state = pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=2.1, pitch=0)
-tooltip = {"html": "<b>Type:</b> {type}<br><b>Nom:</b> {Fournisseur}<br><b>Pays:</b> {Pays}<br><b>Score risque:</b> {Score (%)}/100<br><b>Alerte:</b> {Alerte}", "style": {"backgroundColor": "#262730", "color": "white"}}
+tooltip = {
+    "html": "<b>Type:</b> {type}<br><b>Nom:</b> {Fournisseur}<br><b>Pays:</b> {Pays}<br><b>Ville:</b> {Ville}<br><b>Score risque:</b> {Score (%)}/100<br><b>Alerte:</b> {Alerte}",
+    "style": {"backgroundColor": "#262730", "color": "white"}
+}
 
 st.subheader("🌍 Carte interactive des fournisseurs & zones à risque")
 st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
@@ -65,6 +73,8 @@ st.caption(":green[• Risque faible]  |  :yellow[• Risque moyen]  |  :red[•
 st.divider()
 st.subheader("📊 Tableau de suivi et alertes IA")
 st.dataframe(
-    df_sup[["Portefeuille", "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte"]],
+    df_sup[[
+        "Portefeuille", "Fournisseur", "Pays", "Ville", "Latitude", "Longitude", "Score (%)", "Alerte"
+    ]],
     use_container_width=True, hide_index=True
 )
