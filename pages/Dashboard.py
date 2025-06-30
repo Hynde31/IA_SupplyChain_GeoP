@@ -12,7 +12,7 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     df = df.fillna("")
     return df
 
-# Dictionnaire coordonnées villes/fournisseurs
+# Dictionnaire coordonnées villes/fournisseurs (à compléter au besoin)
 cities_coords = {
     "Kyriat Gat": (31.6097, 34.7604),
     "Rousset": (43.4285, 5.5872),
@@ -46,6 +46,7 @@ else:
     st.stop()
 
 df_sup["Portefeuille"] = df_sup["Portefeuille"].astype(str).str.strip().str.upper()
+df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
 
 # Ajoute colonnes latitude/longitude pour chaque fournisseur (si connues)
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[0])
@@ -61,7 +62,7 @@ df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(
     lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"])
 )
 
-# Filtrage strict par portefeuille MRP choisi UNIQUEMENT
+# Filtrage strict par portefeuille MRP choisi ET uniquement les fournisseurs géolocalisables
 df_sup_display = df_sup[
     (df_sup["Portefeuille"].isin(mrp_selected)) & (df_sup["Coordonnée connue"])
 ].copy()
@@ -76,10 +77,12 @@ df_geo["type"] = df_geo["type"]
 df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
 
 # Calcul du centre de la carte (sécurisé)
-center_lat = pd.to_numeric(df_sup_display["Latitude"], errors="coerce").mean()
-center_lon = pd.to_numeric(df_sup_display["Longitude"], errors="coerce").mean()
-if pd.isna(center_lat) or pd.isna(center_lon):
-    center_lat, center_lon = 45.0, 2.0  # centre Europe
+if not df_sup_display.empty:
+    center_lat = pd.to_numeric(df_sup_display["Latitude"], errors="coerce").mean()
+    center_lon = pd.to_numeric(df_sup_display["Longitude"], errors="coerce").mean()
+else:
+    # fallback : centre France/Europe
+    center_lat, center_lon = 46.7, 2.4
 
 layer = pdk.Layer(
     "ScatterplotLayer",
@@ -107,14 +110,14 @@ tooltip = {
 
 st.subheader(f"🌍 Carte des fournisseurs du portefeuille {', '.join(mrp_selected)} et des zones à risque")
 
-if len(df_sup_display) == 0:
-    st.warning("Aucun fournisseur trouvable sur la carte pour ce portefeuille (ville inconnue ou portefeuille vide).")
+if df_sup_display.empty:
+    st.warning("Aucun fournisseur localisable pour ce portefeuille (ville inconnue ou portefeuille vide).")
     villes_absentes = df_sup[
         (df_sup["Portefeuille"].isin(mrp_selected)) & (~df_sup["Coordonnée connue"])
     ][["Fournisseur", "Ville", "Portefeuille"]]
     if not villes_absentes.empty:
         st.info("Villes absentes du dictionnaire de coordonnées :")
-        st.dataframe(villes_absentes)
+        st.dataframe(villes_absentes, use_container_width=True, hide_index=True)
 else:
     st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
 
@@ -127,19 +130,4 @@ else:
             f'- <span style="color:{col};font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>{mrp}</b>'
         )
     legend_lines.append('- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>')
-    legend_lines.append('- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>')
-
-    st.markdown("\n".join(legend_lines), unsafe_allow_html=True)
-
-st.divider()
-st.subheader(f"📊 Fournisseurs du portefeuille {', '.join(mrp_selected)}")
-
-st.dataframe(
-    df_sup[
-        df_sup["Portefeuille"].isin(mrp_selected)
-    ][
-        ["Portefeuille", "Fournisseur", "Pays", "Ville", "Latitude", "Longitude", "Score (%)", "Alerte"]
-    ],
-    use_container_width=True,
-    hide_index=True
-)
+    legend_lines
