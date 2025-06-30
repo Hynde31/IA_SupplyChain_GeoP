@@ -1,7 +1,19 @@
-Portefeuille,Pièce,Fournisseur,Site prod,Pays,Ville
-MRP1,ABC123,SUPPLIER1,SiteA,France,Paris
-MRP2,DEF456,SUPPLIER2,SiteB,Allemagne,Berlin
-MRP3,ZZZ999,SUPPLIER3,SiteC,Chine,Shanghai
-MRP1,GHI789,SUPPLIER4,SiteD,USA,Chicago
-MRP2,JKL101,SUPPLIER5,SiteE,France,Lyon
-MRP3,LMN234,SUPPLIER6,SiteF,Turquie,Izmir
+Portefeuille,Pièce,Fournisseur,Site prod,Pays,Ville,Dépendance
+HEL,Affichage EFIS,Thales Avionics,Site Meudon,France,Meudon,0.75
+HEL,Commandes de vol,Safran Electronics,Site Valence,France,Valence,0.85
+HEL,Navigation inertielle,Collins Aerospace,Site Toulouse,France,Toulouse,0.65
+HEL,Radio VHF,Garmin,Site Olathe,USA,Olathe,0.55
+HEL,Flight Management System,Honeywell Aerospace,Site Phoenix,USA,Phoenix,0.80
+HEL,Affichage tête haute,Elbit Systems,Site Haïfa,Israël,Haïfa,0.50
+EBE,Sièges cabine,Recaro Aircraft Seating,Site Schwäbisch Hall,Allemagne,Schwäbisch Hall,0.60
+EBE,Toilettes cabine,Jamco Corporation,Site Tokyo,Japon,Tokyo,0.70
+EBE,Galley (cuisine embarquée),Zodiac Aerospace (Safran),Site Plaisir,France,Plaisir,0.82
+EBE,Systèmes électriques,Diehl Aerospace,Site Nuremberg,Allemagne,Nuremberg,0.66
+EBE,Fauteuil équipage,Stelia Aerospace,Site Rochefort,France,Rochefort,0.53
+EBE,Systèmes de divertissement à bord,Panasonic Avionics,Site Lake Forest,USA,Lake Forest,0.58
+DWI,Moteurs CFM,CFM International,Site Villaroche,France,Villaroche,0.92
+DWI,Turbines,Rolls-Royce,Site Derby,Royaume-Uni,Derby,0.88
+DWI,Systèmes injection,MTU Aero Engines,Site Munich,Allemagne,Munich,0.75
+DWI,Boîtiers moteurs,GE Aerospace,Site Cincinnati,USA,Cincinnati,0.81
+DWI,Compresseurs basse pression,Pratt & Whitney,Site Middletown,USA,Middletown,0.77
+DWI,Systèmes FADEC,FADEC International,Site Hingham,USA,Hingham,0.68
