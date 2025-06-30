@@ -5,59 +5,38 @@ from geo_zones import ZONES_GEO
 
 st.set_page_config(page_title="Dashboard Supply Chain", layout="wide")
 
-# Récupération du portefeuille MRP depuis la session
 mrp_codes = st.session_state.get("mrp_codes", [])
 if not mrp_codes:
     st.warning("Vous devez d'abord définir votre portefeuille MRP sur la page Accueil.")
     st.stop()
 
-# Chargement des fournisseurs
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     df = pd.read_csv(path)
-    # Harmonisation
     df["MRP"] = df["Portefeuille"].str.upper().str.strip()
-    df["Site prod"] = df["Site prod"].fillna("")
+    df["Site prod"] = df["Site prod"].fillna("-")
+    df["Pièce"] = df["Pièce"].fillna("-")
+    df["Fournisseur"] = df["Fournisseur"].fillna("-")
+    df["Pays"] = df["Pays"].fillna("-")
+    df["Ville"] = df["Ville"].fillna("-")
     return df
 
 df_sup = load_suppliers()
 df_sup = df_sup[df_sup["Portefeuille"].isin(mrp_codes)]
 
-# Géocodage rapide des villes connues
+# Géocodage fictif ou réel selon données disponibles
 QUICK_COORDS = {
-    "Paris": (48.8566, 2.3522),
-    "Lyon": (45.75, 4.85),
-    "Toulouse": (43.6047, 1.4442),
-    "Marseille": (43.3, 5.4),
-    "Nantes": (47.2186, -1.5536),
-    "Lille": (50.6333, 3.0667),
-    "France": (46.603354, 1.888334),
-    "Allemagne": (51.1657, 10.4515),
-    "Germany": (51.1657, 10.4515),
-    "Chine": (35.8617, 104.1954),
-    "China": (35.8617, 104.1954),
-    "USA": (37.0902, -95.7129),
-    "États-Unis": (37.0902, -95.7129),
-    "Espagne": (40.4637, -3.7492),
-    "Italie": (41.8719, 12.5674),
-    "Turkey": (38.9637, 35.2433),
-    "Turquie": (38.9637, 35.2433),
-    "Pologne": (51.9194, 19.1451),
-    "Royaume-Uni": (55.3781, -3.4360),
-    "Belgique": (50.5039, 4.4699),
-    "Hongrie": (47.1625, 19.5033),
-    "Maroc": (31.7917, -7.0926),
-    "Tunisie": (33.8869, 9.5375),
-    "Inde": (20.5937, 78.9629),
-    "India": (20.5937, 78.9629),
-    # Ajoute les villes/pays utiles à ton portefeuille
+    "Paris": (48.8566, 2.3522), "Lyon": (45.75, 4.85), "Berlin": (52.52, 13.4050),
+    "Shanghai": (31.2304, 121.4737), "Chicago": (41.8781, -87.6298), "Izmir": (38.4192, 27.1287),
+    "France": (46.603354, 1.888334), "Allemagne": (51.1657, 10.4515), "Chine": (35.8617, 104.1954),
+    "USA": (37.0902, -95.7129), "Turquie": (38.9637, 35.2433),
 }
 
 def geocode_city(city, country):
     coords = QUICK_COORDS.get(city) or QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
-# Ajout latitude/longitude fournisseurs
+# Remplissage des coordonnées
 if not df_sup.empty:
     coords = df_sup.apply(lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1)
     coords.columns = ["latitude", "longitude"]
@@ -66,25 +45,24 @@ else:
     df_sup["latitude"] = []
     df_sup["longitude"] = []
 
+# Fournisseurs pour carte
 df_fournisseurs_map = df_sup.dropna(subset=["latitude", "longitude"]).copy()
 df_fournisseurs_map["type"] = "Fournisseur"
 df_fournisseurs_map["label"] = df_fournisseurs_map["Fournisseur"]
 df_fournisseurs_map["Couleur"] = [[0, 102, 204]] * len(df_fournisseurs_map)
-df_fournisseurs_map["Impact"] = ""
+df_fournisseurs_map["Impact"] = "Approvisionnement"
 df_fournisseurs_map["Criticité"] = "Élevée"
 
-# Préparation des zones géopolitiques manuelles
+# Zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
-if df_geo.empty:
-    df_geo = pd.DataFrame(columns=df_fournisseurs_map.columns)
-else:
-    df_geo = df_geo.reindex(columns=df_fournisseurs_map.columns)
+df_geo = df_geo.reindex(columns=df_fournisseurs_map.columns, fill_value="-")
 
-# Fusion pour la carte
+# Fusion pour carte
 df_map = pd.concat([df_fournisseurs_map, df_geo], ignore_index=True)
 
+# Carte pydeck
 if not df_map.empty:
-    center_lat, center_lon = df_map["latitude"].mean(), df_map["longitude"].mean()
+    center_lat, center_lon = df_map["latitude"].astype(float).mean(), df_map["longitude"].astype(float).mean()
 else:
     center_lat, center_lon = 0, 0
 
@@ -114,7 +92,6 @@ tooltip = {
     """,
     "style": {"backgroundColor": "#262730", "color": "white"}
 }
-
 st.subheader("Carte des fournisseurs et zones géopolitiques à risque")
 st.pydeck_chart(
     pdk.Deck(
@@ -123,11 +100,11 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-st.caption(":blue[• Fournisseurs]  |  :red[• Zones à risque géopolitique]  |  :orange[• Zones conflit armé]  |  :yellow[• Zones tensions majeures]")
+st.caption(":blue[• Fournisseurs]  |  :orange[• Zones à risque géopolitique]  |  :red[• Zones conflit armé]  |  :yellow[• Zones tension majeure]")
 
 st.divider()
 
-# KPIs dynamiques
+# KPIs
 nb_mrp = df_sup["Portefeuille"].nunique()
 nb_fournisseurs = df_sup["Fournisseur"].nunique()
 nb_pays = df_sup["Pays"].nunique()
@@ -151,11 +128,17 @@ kpi8.metric("Pays couverts", nb_pays)
 
 st.divider()
 
-# Tableau Approvisionneur
+# Tableau Approvisionneur, valeurs par défaut si manquantes
+for col in ["Portefeuille", "Pièce", "Fournisseur", "Site prod", "Pays", "Ville"]:
+    if col not in df_sup.columns:
+        df_sup[col] = "-"
+    df_sup[col] = df_sup[col].replace("", "-").fillna("-")
+
+df_sup["ALERTE"] = "-"
+risk_zones = set(df_geo["Pays"]) if not df_geo.empty else set()
+df_sup["ALERTE"] = df_sup["Pays"].apply(lambda p: "Zone à risque" if p in risk_zones else "OK")
+
 st.header("Vision Approvisionneur : Statuts MRP / Fournisseurs")
-df_sup["ALERTE"] = ""
-risk_zones = set(df_geo["label"]) if not df_geo.empty else set()
-df_sup["ALERTE"] = df_sup["Pays"].apply(lambda p: "Zone à risque" if p in risk_zones else "")
 st.dataframe(
     df_sup[
         ["Portefeuille", "Pièce", "Fournisseur", "Site prod", "Pays", "Ville", "ALERTE"]
