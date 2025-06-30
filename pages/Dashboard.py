@@ -1,21 +1,21 @@
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
-from datetime import datetime
-import geo_news_nlp
+from geo_zones import ZONES_GEO
 
 st.set_page_config(page_title="Dashboard Supply Chain", layout="wide")
 
-# Récupération des codes MRP depuis la session utilisateur
+# Récupération du portefeuille MRP depuis la session
 mrp_codes = st.session_state.get("mrp_codes", [])
 if not mrp_codes:
     st.warning("Vous devez d'abord définir votre portefeuille MRP sur la page Accueil.")
     st.stop()
 
-# Chargement des données fournisseurs depuis le CSV
+# Chargement des fournisseurs
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     df = pd.read_csv(path)
+    # Harmonisation
     df["MRP"] = df["Portefeuille"].str.upper().str.strip()
     df["Site prod"] = df["Site prod"].fillna("")
     return df
@@ -23,24 +23,49 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
 df_sup = load_suppliers()
 df_sup = df_sup[df_sup["Portefeuille"].isin(mrp_codes)]
 
-# Fonction pour géocoder chaque ville/pays (utilise le mapping rapide de geo_news_nlp)
-@st.cache_data
+# Géocodage rapide des villes connues
+QUICK_COORDS = {
+    "Paris": (48.8566, 2.3522),
+    "Lyon": (45.75, 4.85),
+    "Toulouse": (43.6047, 1.4442),
+    "Marseille": (43.3, 5.4),
+    "Nantes": (47.2186, -1.5536),
+    "Lille": (50.6333, 3.0667),
+    "France": (46.603354, 1.888334),
+    "Allemagne": (51.1657, 10.4515),
+    "Germany": (51.1657, 10.4515),
+    "Chine": (35.8617, 104.1954),
+    "China": (35.8617, 104.1954),
+    "USA": (37.0902, -95.7129),
+    "États-Unis": (37.0902, -95.7129),
+    "Espagne": (40.4637, -3.7492),
+    "Italie": (41.8719, 12.5674),
+    "Turkey": (38.9637, 35.2433),
+    "Turquie": (38.9637, 35.2433),
+    "Pologne": (51.9194, 19.1451),
+    "Royaume-Uni": (55.3781, -3.4360),
+    "Belgique": (50.5039, 4.4699),
+    "Hongrie": (47.1625, 19.5033),
+    "Maroc": (31.7917, -7.0926),
+    "Tunisie": (33.8869, 9.5375),
+    "Inde": (20.5937, 78.9629),
+    "India": (20.5937, 78.9629),
+    # Ajoute les villes/pays utiles à ton portefeuille
+}
+
 def geocode_city(city, country):
-    coords = geo_news_nlp.QUICK_COORDS.get(city) or geo_news_nlp.QUICK_COORDS.get(country)
+    coords = QUICK_COORDS.get(city) or QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
-# Ajout des colonnes latitude/longitude, même si DataFrame vide
+# Ajout latitude/longitude fournisseurs
 if not df_sup.empty:
-    coords_df = df_sup.apply(
-        lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1
-    )
-    coords_df.columns = ["latitude", "longitude"]
-    df_sup = pd.concat([df_sup.reset_index(drop=True), coords_df], axis=1)
+    coords = df_sup.apply(lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1)
+    coords.columns = ["latitude", "longitude"]
+    df_sup = pd.concat([df_sup.reset_index(drop=True), coords], axis=1)
 else:
     df_sup["latitude"] = []
     df_sup["longitude"] = []
 
-# Construction du DataFrame pour la carte des fournisseurs
 df_fournisseurs_map = df_sup.dropna(subset=["latitude", "longitude"]).copy()
 df_fournisseurs_map["type"] = "Fournisseur"
 df_fournisseurs_map["label"] = df_fournisseurs_map["Fournisseur"]
@@ -48,49 +73,16 @@ df_fournisseurs_map["Couleur"] = [[0, 102, 204]] * len(df_fournisseurs_map)
 df_fournisseurs_map["Impact"] = ""
 df_fournisseurs_map["Criticité"] = "Élevée"
 
-# Récupération des zones géopolitiques à risque depuis la veille automatique (si spaCy dispo)
-today = datetime.today().strftime("%Y-%m")
-news, geopolitics = geo_news_nlp.get_news_impact_for_month(today)
-df_geo = pd.DataFrame(geopolitics)
-if not df_geo.empty:
-    df_geo["type"] = "Zone à risque"
-    df_geo["label"] = df_geo["zone"]
-    df_geo["MRP Code"] = ""
-    df_geo["Désignation"] = ""
-    df_geo["Pays"] = df_geo["zone"]
-    df_geo["Site"] = ""
-    df_geo["Couleur"] = df_geo["impact"].map({3: [220,30,30], 2: [255,140,0], 1: [255,215,0]})
-    df_geo["Criticité"] = ""
-    df_geo["Impact"] = "Détecté actu"
-else:
-    # Toujours créer le DataFrame avec les bonnes colonnes si vide
-    df_geo = pd.DataFrame(columns=df_fournisseurs_map.columns)
-
-# Ajout manuel du conflit Israël/Gaza si absent
-israel_conflict = {
-    "type": "Zone à risque",
-    "label": "Israël/Gaza",
-    "MRP Code": "",
-    "Désignation": "",
-    "latitude": 31.5,
-    "longitude": 34.8,
-    "Criticité": "",
-    "Pays": "Israël",
-    "Site": "",
-    "Couleur": [220, 30, 30],
-    "Impact": "Conflit armé",
-}
-# Correction FutureWarning : s'assurer que colonnes et ordre sont identiques
+# Préparation des zones géopolitiques manuelles
+df_geo = pd.DataFrame(ZONES_GEO)
 if df_geo.empty:
     df_geo = pd.DataFrame(columns=df_fournisseurs_map.columns)
-
-israel_conflict_df = pd.DataFrame([israel_conflict]).reindex(columns=df_geo.columns)
-df_geo = pd.concat([df_geo, israel_conflict_df], ignore_index=True)
+else:
+    df_geo = df_geo.reindex(columns=df_fournisseurs_map.columns)
 
 # Fusion pour la carte
-df_map = pd.concat([df_fournisseurs_map, df_geo[df_fournisseurs_map.columns]], ignore_index=True)
+df_map = pd.concat([df_fournisseurs_map, df_geo], ignore_index=True)
 
-# Affichage carte interactive pydeck
 if not df_map.empty:
     center_lat, center_lon = df_map["latitude"].mean(), df_map["longitude"].mean()
 else:
@@ -135,7 +127,7 @@ st.caption(":blue[• Fournisseurs]  |  :red[• Zones à risque géopolitique] 
 
 st.divider()
 
-# KPIs
+# KPIs dynamiques
 nb_mrp = df_sup["Portefeuille"].nunique()
 nb_fournisseurs = df_sup["Fournisseur"].nunique()
 nb_pays = df_sup["Pays"].nunique()
