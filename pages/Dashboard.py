@@ -26,17 +26,22 @@ def geocode_city(city, country):
     coords = geo_news_nlp.QUICK_COORDS.get(city) or geo_news_nlp.QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
-df_sup[["latitude", "longitude"]] = df_sup.apply(
-    lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])),
-    axis=1
-)
+if not df_sup.empty:
+    coords_df = df_sup.apply(
+        lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1
+    )
+    coords_df.columns = ["latitude", "longitude"]
+    df_sup = pd.concat([df_sup.reset_index(drop=True), coords_df], axis=1)
+else:
+    df_sup["latitude"] = []
+    df_sup["longitude"] = []
 
 df_fournisseurs_map = df_sup.dropna(subset=["latitude", "longitude"]).copy()
 df_fournisseurs_map["type"] = "Fournisseur"
 df_fournisseurs_map["label"] = df_fournisseurs_map["Fournisseur"]
 df_fournisseurs_map["Couleur"] = [[0, 102, 204]] * len(df_fournisseurs_map)
 df_fournisseurs_map["Impact"] = ""
-df_fournisseurs_map["Criticité"] = "Élevée"  # À adapter
+df_fournisseurs_map["Criticité"] = "Élevée"
 
 # Zones géopolitiques dynamiques (news)
 today = datetime.today().strftime("%Y-%m")
@@ -61,15 +66,14 @@ israel_conflict = {
     "label": "Israël/Gaza",
     "MRP Code": "",
     "Désignation": "",
-    "latitude": 31.5,  # Latitude centre Israël
-    "longitude": 34.8, # Longitude centre Israël
+    "latitude": 31.5,
+    "longitude": 34.8,
     "Criticité": "",
     "Pays": "Israël",
     "Site": "",
-    "Couleur": [220, 30, 30],  # Rouge intense
+    "Couleur": [220, 30, 30],
     "Impact": "Conflit armé",
 }
-# Ajoute si déjà non détecté par la veille
 if not ((df_geo["label"] == "Israël/Gaza") | (df_geo["label"] == "Israël") | (df_geo["label"] == "Israel")).any():
     df_geo = pd.concat([df_geo, pd.DataFrame([israel_conflict])], ignore_index=True)
 
@@ -119,14 +123,13 @@ st.caption(":blue[• Fournisseurs]  |  :red[• Zones à risque géopolitique] 
 
 st.divider()
 
-# KPIs (inchangé, adapte selon tes données)
 nb_mrp = df_sup["Portefeuille"].nunique()
 nb_fournisseurs = df_sup["Fournisseur"].nunique()
 nb_pays = df_sup["Pays"].nunique()
 nb_sites = df_sup["Site prod"].nunique()
 nb_sites_risque = df_fournisseurs_map[df_fournisseurs_map["Criticité"] == "Élevée"].shape[0]
-ruptures_cours = 0  # À remplacer si tu as une colonne Rupture
-dual_sourcing_pct = int((df_sup.groupby("Pièce")["Fournisseur"].nunique() > 1).mean() * 100)
+ruptures_cours = 0
+dual_sourcing_pct = int((df_sup.groupby("Pièce")["Fournisseur"].nunique() > 1).mean() * 100) if not df_sup.empty else 0
 score_risque_moyen = 2.4
 otd_moyen = 97
 
