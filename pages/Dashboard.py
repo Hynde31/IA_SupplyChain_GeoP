@@ -12,7 +12,7 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     df = df.fillna("")
     return df
 
-# Dictionnaire coordonnées villes/fournisseurs (à compléter si besoin)
+# Dictionnaire coordonnées villes/fournisseurs
 cities_coords = {
     "Kyriat Gat": (31.6097, 34.7604),
     "Rousset": (43.4285, 5.5872),
@@ -39,6 +39,14 @@ if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
     st.stop()
 
+# Lecture du portefeuille sélectionné sur la page d'accueil
+mrp_selected = []
+if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
+    mrp_selected = [str(code).strip().upper() for code in st.session_state["mrp_codes"]]
+else:
+    st.error("Aucun portefeuille MRP sélectionné. Retournez à l'accueil.")
+    st.stop()
+
 # Ajoute colonnes latitude/longitude pour chaque fournisseur (si connues)
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[0])
 df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (None, None))[1])
@@ -48,45 +56,30 @@ df_sup["Score (%)"] = (df_sup["Score risque géopolitique"]*100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
-df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(lambda x: mrp_colors.get(str(x).strip(), mrp_colors["DEFAULT"]))
+df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(lambda x: mrp_colors.get(str(x).strip().upper(), mrp_colors["DEFAULT"]))
 
-# Pour la carte, ne prend que ceux ayant latitude+longitude
-df_sup_display = df_sup.dropna(subset=["Latitude", "Longitude"])
+# Filtrage par portefeuille MRP choisi
+df_sup_display = df_sup[
+    df_sup["Portefeuille"].str.strip().str.upper().isin(mrp_selected)
+].dropna(subset=["Latitude", "Longitude"])
 df_sup_display["type"] = "Fournisseur"
 
-# Ajout zones géo (avec couleur orange ou rouge)
+# Ajout zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo["Couleur MRP"] = df_geo["Couleur"]
 df_geo["type"] = df_geo["type"]
 
 df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
 
-# ---- FILTRES ----
-with st.sidebar:
-    st.markdown("### Filtres")
-    mrp_codes = sorted(df_sup_display["Portefeuille"].unique())
-    mrp_selected = st.multiselect("Filtrer par portefeuille (MRP)", mrp_codes, default=mrp_codes)
-    pays_codes = sorted(df_sup_display["Pays"].unique())
-    pays_selected = st.multiselect("Filtrer par pays", pays_codes, default=pays_codes)
-    alertes = ["🟥 Critique", "🟧 Surveille", "🟩 OK"]
-    alerte_selected = st.multiselect("Filtrer par alerte IA", alertes, default=alertes)
-
-df_map_filt = df_map[
-    (df_map.get("Portefeuille", "-").isin(mrp_selected)) &
-    (df_map.get("Pays", "-").isin(pays_selected)) &
-    (df_map.get("Alerte", "-").isin(alerte_selected))
-    | (df_map["type"].str.contains("Zone", na=False))  # toujours afficher les zones géo
-]
-
 # Sécurisation de la conversion en float
-center_lat = pd.to_numeric(df_map_filt["Latitude"], errors="coerce").mean()
-center_lon = pd.to_numeric(df_map_filt["Longitude"], errors="coerce").mean()
+center_lat = pd.to_numeric(df_map["Latitude"], errors="coerce").mean()
+center_lon = pd.to_numeric(df_map["Longitude"], errors="coerce").mean()
 if pd.isna(center_lat) or pd.isna(center_lon):
     center_lat, center_lon = 0, 0  # fallback
 
 layer = pdk.Layer(
     "ScatterplotLayer",
-    data=df_map_filt,
+    data=df_map,
     get_position='[Longitude, Latitude]',
     get_color="Couleur MRP",
     get_radius=60000,
@@ -107,13 +100,13 @@ tooltip = {
     "style": {"backgroundColor": "#262730", "color": "white"}
 }
 
-st.subheader("🌍 Carte interactive des fournisseurs & zones à risque")
-
+# Affichage
+st.subheader(f"🌍 Carte des fournisseurs du portefeuille {', '.join(mrp_selected)} et des zones à risque")
 st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
 
-# Nouvelle légende claire
+# Légende claire
 st.markdown("""
-**Légende carte :**
+**Légende carte :**
 - <span style="color:rgb(57,106,177);font-weight:bold">●</span> Portefeuille HEL
 - <span style="color:rgb(218,124,48);font-weight:bold">●</span> Portefeuille EBE
 - <span style="color:rgb(62,150,81);font-weight:bold">●</span> Portefeuille DWI
@@ -122,7 +115,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.divider()
-st.subheader("📊 Tableau de suivi et alertes IA")
+st.subheader(f"📊 Fournisseurs du portefeuille {', '.join(mrp_selected)}")
 
 st.dataframe(
     df_sup_display[
