@@ -1,10 +1,7 @@
 Portefeuille,Pièce,Fournisseur,Site prod,Pays,Ville
-COE MRP EBE,Module d'alimentation,Intel,Kyriat Gat Plant,Israël,Kyriat Gat
-COE MRP EBE,Microcontrôleur,STMicroelectronics,Rousset,France,Rousset
-COE MRP EBE,Capteur optique,Hamamatsu,Shizuoka,Japon,Shizuoka
-COE MRP EBE,Connecteur,TE Connectivity,Bensheim,Allemagne,Bensheim
-A,Capteur de pression,TevaTech,Haifa Plant,Israël,Haïfa
-A,Connecteur,Schneider,Angers Factory,France,Angers
-B,Vis,FastenAll,Shanghai Plant,Chine,Shanghai
-B,Joint,SealMaster,Beersheba Hub,Israël,Beersheba
-C,Relais,Omron,Kyoto Factory,Japon,Kyoto
+MRP1,ABC123,SUPPLIER1,SiteA,France,Paris
+MRP2,DEF456,SUPPLIER2,SiteB,Allemagne,Berlin
+MRP3,ZZZ999,SUPPLIER3,SiteC,Chine,Shanghai
+MRP1,GHI789,SUPPLIER4,SiteD,USA,Chicago
+MRP2,JKL101,SUPPLIER5,SiteE,France,Lyon
+MRP3,LMN234,SUPPLIER6,SiteF,Turquie,Izmir
