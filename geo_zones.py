@@ -1,3 +1,4 @@
+ZONES_GEO = [
     # Zone à risque géopolitique (tension majeure)
     {
         "type": "Zone à risque géopolitique",
@@ -12,14 +13,13 @@
         "MRP Code": "-",
         "Désignation": "-",
     },
-    # Zone conflit armé
     {
         "type": "Zone conflit armé",
         "label": "Israël/Gaza",
         "latitude": 31.5,
         "longitude": 34.8,
         "Pays": "Israël",
-        "Couleur": [220, 30, 30],  # Rouge
+        "Couleur": [220, 30, 30],
         "Impact": "Conflit armé",
         "Criticité": "Élevée",
         "Site": "-",
@@ -38,6 +38,5 @@
         "Site": "-",
         "MRP Code": "-",
         "Désignation": "-",
-    },
-    # Ajoute d'autres zones si besoin...
+    }
 ]
