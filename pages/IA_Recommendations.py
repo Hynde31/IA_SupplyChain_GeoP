@@ -3,7 +3,8 @@ import pandas as pd
 from ai_models import recommend_action, geopolitical_risk_score
 from geo_zones import ZONES_GEO
 
-st.title("Recommandations IA pour la résilience")
+st.set_page_config(page_title="Recommandations IA", layout="wide")
+st.title("🤖 Recommandations IA pour la résilience Supply Chain")
 
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
