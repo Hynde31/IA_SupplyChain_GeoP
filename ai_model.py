@@ -1,12 +1,9 @@
-import numpy as np
-
 def geopolitical_risk_score(row, zones_geo):
     """
     Calcule un score de risque géopolitique pour un fournisseur :
     - Score élevé si situé dans une zone à risque géopolitique critique ou moyenne.
     - Sinon, pondère selon la dépendance fournisseur (colonne 'Dépendance', 0 à 1).
     """
-    # Vérifie si le pays du fournisseur est dans une zone à risque
     zone = next((z for z in zones_geo if z["Pays"].lower() == str(row["Pays"]).lower()), None)
     if zone:
         criticite = zone.get("Criticité", "").lower()
