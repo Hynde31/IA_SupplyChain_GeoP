@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
 
@@ -7,16 +8,36 @@ st.write("""
 Ce tableau de bord permet de visualiser vos fournisseurs, les zones à risque géopolitique et de suivre vos indicateurs clés de performance supply chain.
 """)
 
-# Sélection du portefeuille utilisateur
-if "mrp_codes" not in st.session_state:
-    st.session_state["mrp_codes"] = []
+# Chargement du CSV pour extraire les codes MRP valides
+@st.cache_data
+def get_mrp_codes(path="mapping_fournisseurs.csv"):
+    try:
+        df = pd.read_csv(path)
+        return sorted(list(df["Portefeuille"].str.upper().str.strip().dropna().unique()))
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des portefeuilles : {e}")
+        return []
 
-mrp_input = st.text_input(
-    "Entrez vos codes MRP (séparés par des virgules, ex : MRP1,MRP2,MRP3) :",
-    value=",".join(st.session_state["mrp_codes"])
+valid_mrp_codes = get_mrp_codes()
+
+if not valid_mrp_codes:
+    st.error("Aucun portefeuille MRP trouvé dans le fichier CSV. Merci de vérifier votre fichier.")
+    st.stop()
+
+# Multiselect infaillible
+default_selection = st.session_state.get("mrp_codes", valid_mrp_codes[:1])
+
+selection = st.multiselect(
+    "Sélectionnez vos codes MRP à suivre :", 
+    options=valid_mrp_codes,
+    default=default_selection
 )
+
 if st.button("Valider mon portefeuille"):
-    st.session_state["mrp_codes"] = [code.strip().upper() for code in mrp_input.split(",") if code.strip()]
-    st.success("Portefeuille MRP mis à jour !")
+    st.session_state["mrp_codes"] = selection
+    st.success(f"Portefeuille MRP mis à jour : {', '.join(selection)}")
+
+if "mrp_codes" not in st.session_state:
+    st.session_state["mrp_codes"] = selection
 
 st.write("Utilisez le menu de gauche pour accéder au dashboard et à la veille géopolitique.")
