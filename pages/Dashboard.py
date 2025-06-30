@@ -104,14 +104,14 @@ tooltip = {
 st.subheader(f"🌍 Carte des fournisseurs du portefeuille {', '.join(mrp_selected)} et des zones à risque")
 st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
 
-# Légende claire
+# Nouvelle légende claire et explicite
 st.markdown("""
 **Légende carte :**
-- <span style="color:rgb(57,106,177);font-weight:bold">●</span> Portefeuille HEL
-- <span style="color:rgb(218,124,48);font-weight:bold">●</span> Portefeuille EBE
-- <span style="color:rgb(62,150,81);font-weight:bold">●</span> Portefeuille DWI
-- <span style="color:orange;font-weight:bold">●</span> Zones à risque géopolitique
-- <span style="color:red;font-weight:bold">●</span> Zones de conflit
+- <span style="color:rgb(57,106,177);font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>HEL</b>
+- <span style="color:rgb(218,124,48);font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>EBE</b>
+- <span style="color:rgb(62,150,81);font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>DWI</b>
+- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>
+- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>
 """, unsafe_allow_html=True)
 
 st.divider()
