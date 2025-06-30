@@ -6,28 +6,23 @@ import geo_news_nlp
 
 st.set_page_config(page_title="Dashboard Supply Chain", layout="wide")
 
-# 0. Sélection du portefeuille
 mrp_codes = st.session_state.get("mrp_codes", [])
 if not mrp_codes:
     st.warning("Vous devez d'abord définir votre portefeuille MRP sur la page Accueil.")
     st.stop()
 
-# 1. Chargement des données fournisseurs (depuis le CSV)
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     df = pd.read_csv(path)
-    # Nettoyage basique
     df["MRP"] = df["Portefeuille"].str.upper().str.strip()
-    df["Site prod"] = df["Site prod"].fillna("")  # Pour éviter les NaN
+    df["Site prod"] = df["Site prod"].fillna("")
     return df
 
 df_sup = load_suppliers()
 df_sup = df_sup[df_sup["Portefeuille"].isin(mrp_codes)]
 
-# 2. Extraction coordonnées (pour la map, à adapter selon réalités)
 @st.cache_data
 def geocode_city(city, country):
-    # Mapping rapide, à remplacer par un vrai service si besoin
     coords = geo_news_nlp.QUICK_COORDS.get(city) or geo_news_nlp.QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
@@ -36,16 +31,14 @@ df_sup[["latitude", "longitude"]] = df_sup.apply(
     axis=1
 )
 
-# 3. Construction DataFrame pour la carte fournisseurs
 df_fournisseurs_map = df_sup.dropna(subset=["latitude", "longitude"]).copy()
 df_fournisseurs_map["type"] = "Fournisseur"
 df_fournisseurs_map["label"] = df_fournisseurs_map["Fournisseur"]
 df_fournisseurs_map["Couleur"] = [[0, 102, 204]] * len(df_fournisseurs_map)
 df_fournisseurs_map["Impact"] = ""
-df_fournisseurs_map["Criticité"] = "Élevée"  # À adapter selon tes règles
+df_fournisseurs_map["Criticité"] = "Élevée"  # À adapter
 
-# 4. Zones géopolitiques à risque (issues du module d'analyse)
-# Choix du mois courant pour la veille auto
+# Zones géopolitiques dynamiques (news)
 today = datetime.today().strftime("%Y-%m")
 news, geopolitics = geo_news_nlp.get_news_impact_for_month(today)
 df_geo = pd.DataFrame(geopolitics)
@@ -62,10 +55,26 @@ if not df_geo.empty:
 else:
     df_geo = pd.DataFrame(columns=df_fournisseurs_map.columns)
 
-# 5. Fusion pour la carte
+# Ajout manuel du conflit Israël/Gaza si absent
+israel_conflict = {
+    "type": "Zone à risque",
+    "label": "Israël/Gaza",
+    "MRP Code": "",
+    "Désignation": "",
+    "latitude": 31.5,  # Latitude centre Israël
+    "longitude": 34.8, # Longitude centre Israël
+    "Criticité": "",
+    "Pays": "Israël",
+    "Site": "",
+    "Couleur": [220, 30, 30],  # Rouge intense
+    "Impact": "Conflit armé",
+}
+# Ajoute si déjà non détecté par la veille
+if not ((df_geo["label"] == "Israël/Gaza") | (df_geo["label"] == "Israël") | (df_geo["label"] == "Israel")).any():
+    df_geo = pd.concat([df_geo, pd.DataFrame([israel_conflict])], ignore_index=True)
+
 df_map = pd.concat([df_fournisseurs_map, df_geo[df_fournisseurs_map.columns]], ignore_index=True)
 
-# 6. Affichage carte interactive
 if not df_map.empty:
     center_lat, center_lon = df_map["latitude"].mean(), df_map["longitude"].mean()
 else:
@@ -80,14 +89,12 @@ layer = pdk.Layer(
     pickable=True,
     auto_highlight=True,
 )
-
 view_state = pdk.ViewState(
     longitude=center_lon,
     latitude=center_lat,
     zoom=2.2,
     pitch=0,
 )
-
 tooltip = {
     "html": """
         <b>Type:</b> {type}<br>
@@ -112,16 +119,16 @@ st.caption(":blue[• Fournisseurs]  |  :red[• Zones à risque géopolitique] 
 
 st.divider()
 
-# 7. KPIs réalistes (calculés à partir des données)
+# KPIs (inchangé, adapte selon tes données)
 nb_mrp = df_sup["Portefeuille"].nunique()
 nb_fournisseurs = df_sup["Fournisseur"].nunique()
 nb_pays = df_sup["Pays"].nunique()
 nb_sites = df_sup["Site prod"].nunique()
 nb_sites_risque = df_fournisseurs_map[df_fournisseurs_map["Criticité"] == "Élevée"].shape[0]
-ruptures_cours = 0  # À remplacer par une vraie logique/colonne si dispo
+ruptures_cours = 0  # À remplacer si tu as une colonne Rupture
 dual_sourcing_pct = int((df_sup.groupby("Pièce")["Fournisseur"].nunique() > 1).mean() * 100)
-score_risque_moyen = 2.4  # À calculer si tu as des scores réels
-otd_moyen = 97  # À remplacer si tu as des vraies données OTD
+score_risque_moyen = 2.4
+otd_moyen = 97
 
 st.title("KPI Portefeuille - Supply Chain")
 kpi1, kpi2, kpi3, kpi4, kpi5, kpi6, kpi7, kpi8 = st.columns(8)
@@ -136,11 +143,9 @@ kpi8.metric("Pays couverts", nb_pays)
 
 st.divider()
 
-# 8. Vision Approvisionneur (tableau)
 st.header("Vision Approvisionneur : Statuts MRP / Fournisseurs")
 df_sup["ALERTE"] = ""
-# Détection auto : fournisseur dans un pays à risque géopolitique ?
-risk_zones = set(df_geo["zone"]) if not df_geo.empty else set()
+risk_zones = set(df_geo["label"]) if not df_geo.empty else set()
 df_sup["ALERTE"] = df_sup["Pays"].apply(lambda p: "Zone à risque" if p in risk_zones else "")
 st.dataframe(
     df_sup[
