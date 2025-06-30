@@ -1,7 +1,21 @@
 import streamlit as st
-import pandas as pd
 
-st.set_page_config(page_title="Supply Chain Dashboard", layout="wide")
+st.set_page_config(page_title="Supply Chain Airbus & IA", layout="wide")
+
+st.title("✨ Supply Chain Resilience – Airbus & IA ✨")
+st.markdown("""
+Bienvenue sur la plateforme intelligente de résilience Supply Chain Airbus !
+
+**Fonctionnalités :**
+- Cartographie interactive fournisseurs & zones géopolitiques
+- Scoring IA du risque géopolitique par fournisseur
+- Alertes dynamiques sur les zones critiques
+- Recommandations IA (diversification, relocalisation, etc.)
+- Tableaux et indicateurs de suivi en temps réel
+
+**Votre mission :**  
+Utilisez le menu de gauche pour accéder au Dashboard ou aux recommandations IA.
+""")
 
 # Mapping codes internes <-> codes affichés
 MRP_LABELS = {
