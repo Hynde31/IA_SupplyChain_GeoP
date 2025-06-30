@@ -13,17 +13,27 @@ if not mrp_codes:
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     df = pd.read_csv(path)
-    df["MRP"] = df["Portefeuille"].str.upper().str.strip()
-    df["Site prod"] = df["Site prod"].fillna("-")
-    df["Pièce"] = df["Pièce"].fillna("-")
-    df["Fournisseur"] = df["Fournisseur"].fillna("-")
-    df["Pays"] = df["Pays"].fillna("-")
-    df["Ville"] = df["Ville"].fillna("-")
+    df["Portefeuille"] = df["Portefeuille"].str.upper().str.strip()
+    df["Site prod"] = df.get("Site prod", pd.Series("-")).fillna("-")
+    df["Pièce"] = df.get("Pièce", pd.Series("-")).fillna("-")
+    df["Fournisseur"] = df.get("Fournisseur", pd.Series("-")).fillna("-")
+    df["Pays"] = df.get("Pays", pd.Series("-")).fillna("-")
+    df["Ville"] = df.get("Ville", pd.Series("-")).fillna("-")
     return df
 
 df_sup = load_suppliers()
-df_sup = df_sup[df_sup["Portefeuille"].isin(mrp_codes)]
 
+# Affichage debug pour vérifier les MRP disponibles et ceux sélectionnés
+st.write("Codes MRP disponibles dans le CSV :", sorted(df_sup["Portefeuille"].unique()))
+st.write("Codes MRP sélectionnés :", mrp_codes)
+
+df_sup_filtered = df_sup[df_sup["Portefeuille"].isin([code.strip().upper() for code in mrp_codes])]
+
+if df_sup_filtered.empty:
+    st.error("Aucun fournisseur trouvé pour votre portefeuille sélectionné. Vérifiez l’orthographe des codes MRP ou le contenu du fichier CSV.")
+    st.stop()
+
+# Géocodage rapide
 QUICK_COORDS = {
     "Paris": (48.8566, 2.3522), "Lyon": (45.75, 4.85), "Berlin": (52.52, 13.4050),
     "Shanghai": (31.2304, 121.4737), "Chicago": (41.8781, -87.6298), "Izmir": (38.4192, 27.1287),
@@ -35,23 +45,23 @@ def geocode_city(city, country):
     coords = QUICK_COORDS.get(city) or QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
-if not df_sup.empty:
-    coords = df_sup.apply(lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1)
-    coords.columns = ["latitude", "longitude"]
-    df_sup = pd.concat([df_sup.reset_index(drop=True), coords], axis=1)
-else:
-    df_sup["latitude"] = []
-    df_sup["longitude"] = []
+coords = df_sup_filtered.apply(lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1)
+coords.columns = ["latitude", "longitude"]
+df_sup_filtered = pd.concat([df_sup_filtered.reset_index(drop=True), coords], axis=1)
 
-df_fournisseurs_map = df_sup.dropna(subset=["latitude", "longitude"]).copy()
+# Fournisseurs pour carte
+df_fournisseurs_map = df_sup_filtered.dropna(subset=["latitude", "longitude"]).copy()
 df_fournisseurs_map["type"] = "Fournisseur"
 df_fournisseurs_map["label"] = df_fournisseurs_map["Fournisseur"]
 df_fournisseurs_map["Couleur"] = [[0, 102, 204]] * len(df_fournisseurs_map)
 df_fournisseurs_map["Impact"] = "Approvisionnement"
 df_fournisseurs_map["Criticité"] = "Élevée"
 
+# Zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo = df_geo.reindex(columns=df_fournisseurs_map.columns, fill_value="-")
+
+# Fusion pour carte
 df_map = pd.concat([df_fournisseurs_map, df_geo], ignore_index=True)
 
 if not df_map.empty:
@@ -93,17 +103,18 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-st.caption(":blue[• Fournisseurs]  |  :orange[• Zones à risque géopolitique]  |  :red[• Zones conflit armé]  |  :yellow[• Zones tension majeure]")
+st.caption(":blue[• Fournisseurs]  |  :orange[• Zones à risque géopolitique]  |  :red[• Zones conflit armé]  |  :yellow[• Zones tensions majeures]")
 
 st.divider()
 
-nb_mrp = df_sup["Portefeuille"].nunique()
-nb_fournisseurs = df_sup["Fournisseur"].nunique()
-nb_pays = df_sup["Pays"].nunique()
-nb_sites = df_sup["Site prod"].nunique()
+# KPIs
+nb_mrp = df_sup_filtered["Portefeuille"].nunique()
+nb_fournisseurs = df_sup_filtered["Fournisseur"].nunique()
+nb_pays = df_sup_filtered["Pays"].nunique()
+nb_sites = df_sup_filtered["Site prod"].nunique()
 nb_sites_risque = df_fournisseurs_map[df_fournisseurs_map["Criticité"] == "Élevée"].shape[0]
 ruptures_cours = 0
-dual_sourcing_pct = int((df_sup.groupby("Pièce")["Fournisseur"].nunique() > 1).mean() * 100) if not df_sup.empty else 0
+dual_sourcing_pct = int((df_sup_filtered.groupby("Pièce")["Fournisseur"].nunique() > 1).mean() * 100) if not df_sup_filtered.empty else 0
 score_risque_moyen = 2.4
 otd_moyen = 97
 
@@ -120,18 +131,13 @@ kpi8.metric("Pays couverts", nb_pays)
 
 st.divider()
 
-for col in ["Portefeuille", "Pièce", "Fournisseur", "Site prod", "Pays", "Ville"]:
-    if col not in df_sup.columns:
-        df_sup[col] = "-"
-    df_sup[col] = df_sup[col].replace("", "-").fillna("-")
-
-df_sup["ALERTE"] = "-"
+# ALERTE : Zone à risque pour le pays du fournisseur
 risk_zones = set(df_geo["Pays"]) if not df_geo.empty else set()
-df_sup["ALERTE"] = df_sup["Pays"].apply(lambda p: "Zone à risque" if p in risk_zones else "OK")
+df_sup_filtered["ALERTE"] = df_sup_filtered["Pays"].apply(lambda p: "Zone à risque" if p in risk_zones else "OK")
 
 st.header("Vision Approvisionneur : Statuts MRP / Fournisseurs")
 st.dataframe(
-    df_sup[
+    df_sup_filtered[
         ["Portefeuille", "Pièce", "Fournisseur", "Site prod", "Pays", "Ville", "ALERTE"]
     ],
     use_container_width=True,
