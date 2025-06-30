@@ -26,6 +26,7 @@ def geocode_city(city, country):
     coords = geo_news_nlp.QUICK_COORDS.get(city) or geo_news_nlp.QUICK_COORDS.get(country)
     return coords if coords else (None, None)
 
+# Toujours créer les colonnes, même si df_sup est vide
 if not df_sup.empty:
     coords_df = df_sup.apply(
         lambda row: pd.Series(geocode_city(row["Ville"], row["Pays"])), axis=1
@@ -60,7 +61,6 @@ if not df_geo.empty:
 else:
     df_geo = pd.DataFrame(columns=df_fournisseurs_map.columns)
 
-# Ajout manuel du conflit Israël/Gaza si absent
 israel_conflict = {
     "type": "Zone à risque",
     "label": "Israël/Gaza",
