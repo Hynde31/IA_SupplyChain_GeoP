@@ -1,29 +1,5 @@
 ZONES_GEO = [
-    {
-        "type": "Zone conflit armé",
-        "label": "Ukraine",
-        "latitude": 49.0,
-        "longitude": 32.0,
-        "Pays": "Ukraine",
-        "Couleur": [220, 30, 30],
-        "Criticité": "Élevée"
-    },
-    {
-        "type": "Zone à risque géopolitique",
-        "label": "Chine",
-        "latitude": 35.0,
-        "longitude": 104.0,
-        "Pays": "Chine",
-        "Couleur": [255, 215, 0],
-        "Criticité": "Moyenne"
-    },
-    {
-        "type": "Zone à risque géopolitique",
-        "label": "Moyen-Orient",
-        "latitude": 29.0,
-        "longitude": 47.0,
-        "Pays": "Arabie Saoudite",
-        "Couleur": [255, 165, 0],
-        "Criticité": "Moyenne"
-    }
+    {"Nom": "Russie", "Description": "Zone sous sanctions", "Impact": 0.5, "Latitude": 56.0, "Longitude": 38.0, "type": "Zone", "Couleur": [255, 0, 0]},
+    {"Nom": "Chine", "Description": "Zone sous tension commerciale", "Impact": 0.3, "Latitude": 35.0, "Longitude": 105.0, "type": "Zone", "Couleur": [255, 165, 0]},
+    {"Nom": "Moyen-Orient", "Description": "Instabilités régionales", "Impact": 0.4, "Latitude": 30.0, "Longitude": 45.0, "type": "Zone", "Couleur": [255, 165, 0]}
 ]
