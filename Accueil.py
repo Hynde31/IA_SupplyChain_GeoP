@@ -6,9 +6,7 @@ st.set_page_config(page_title="Accueil - Résilience Supply Chain", layout="wide
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     try:
-        # D'abord on tente avec virgule
         df = pd.read_csv(path).fillna("")
-        # Si une seule colonne, on essaie avec point-virgule (cas Excel FR)
         if len(df.columns) == 1:
             df = pd.read_csv(path, sep=';').fillna("")
         return df
@@ -18,34 +16,52 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
 
 df = load_suppliers()
 
-st.title("🏠 Accueil - Résilience Supply Chain Airbus")
+st.markdown("# ✈️ Plateforme de Résilience Supply Chain – Airbus & IA")
+st.markdown("### Accueil — Sélection de votre portefeuille MRP")
+st.caption("""
+En tant que supply chain officer ou acheteur, sélectionnez ci-dessous le ou les portefeuilles que vous souhaitez analyser.
+La sélection personnalisera l’ensemble des indicateurs et analyses de la plateforme.
+""")
 
-# Affiche les colonnes lues et les premières données
-st.write("Colonnes détectées :", df.columns.tolist())
-if not df.empty:
-    st.dataframe(df.head())
-else:
-    st.warning("Le fichier CSV est vide ou introuvable.")
+if df.empty:
+    st.error("Aucune donnée fournisseur trouvée. Merci de vérifier le fichier mapping_fournisseurs.csv.")
     st.stop()
 
-# Vérifie présence de la colonne Portefeuille
-col_portefeuille = None
-for col in df.columns:
-    if col.strip().lower() == "portefeuille":
-        col_portefeuille = col
-        break
-
+col_portefeuille = next((col for col in df.columns if col.strip().lower() == "portefeuille"), None)
 if not col_portefeuille:
     st.error("La colonne 'Portefeuille' est absente ou mal nommée dans le fichier CSV.")
     st.stop()
 
-# Charge les MRP codes
-mrp_codes = df[col_portefeuille].dropna().unique()
+mrp_codes = sorted(df[col_portefeuille].dropna().unique())
+if not mrp_codes:
+    st.warning("Aucun portefeuille MRP détecté.")
+    st.stop()
 
-if len(mrp_codes) == 0:
-    st.warning("Aucun portefeuille MRP trouvé dans le fichier CSV.")
-else:
-    selected = st.multiselect("Sélectionnez un ou plusieurs portefeuilles MRP :", mrp_codes)
-    if selected:
+# Sélection centrale et design premium
+default_selection = st.session_state.get("mrp_codes", mrp_codes)
+st.markdown("#### Choix du code portefeuille MRP")
+selected = st.multiselect(
+    "Sélectionnez votre portefeuille MRP :",
+    mrp_codes,
+    default=default_selection,
+    help="Exemple : HEL (électronique), EBE (cabines), etc."
+)
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("✅ Valider ma sélection"):
         st.session_state["mrp_codes"] = selected
-        st.success("Sélection enregistrée. Vous pouvez consulter le Dashboard.")
+        st.success("Sélection enregistrée ! Toutes les données affichées correspondront à ce portefeuille.")
+
+with col2:
+    if st.button("🔄 Réinitialiser"):
+        st.session_state["mrp_codes"] = mrp_codes
+        st.info("Sélection réinitialisée.")
+
+# Aperçu dynamique du portefeuille sélectionné
+if selected:
+    st.markdown("---")
+    st.markdown("#### Aperçu de votre portefeuille fournisseur")
+    st.dataframe(df[df[col_portefeuille].isin(selected)], use_container_width=True, hide_index=True)
+else:
+    st.info("Sélectionnez au moins un portefeuille pour voir les fournisseurs associés.")
