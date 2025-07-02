@@ -3,19 +3,29 @@ import pandas as pd
 
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
-    return pd.read_csv(path).fillna("")
+    try:
+        df = pd.read_csv(path).fillna("")
+        return df
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des portefeuilles : {e}")
+        return pd.DataFrame()
 
 df = load_suppliers()
 
 st.title("🏠 Accueil - Résilience Supply Chain Airbus")
 
-# Sélection des MRP
-if "Portefeuille" not in df.columns or df["Portefeuille"].dropna().empty:
+if df.empty:
     st.warning("Aucun portefeuille MRP trouvé dans le fichier CSV. Merci de vérifier votre fichier.")
 else:
-    mrp_codes = df["Portefeuille"].dropna().unique()
-    selected = st.multiselect("Sélectionnez un ou plusieurs portefeuilles MRP :", mrp_codes)
+    if "Portefeuille" not in df.columns:
+        st.warning("La colonne 'Portefeuille' est absente du fichier CSV.")
+    else:
+        mrp_codes = df["Portefeuille"].dropna().unique()
+        if len(mrp_codes) == 0:
+            st.warning("Aucun portefeuille MRP trouvé dans le fichier CSV. Merci de vérifier votre fichier.")
+        else:
+            selected = st.multiselect("Sélectionnez un ou plusieurs portefeuilles MRP :", mrp_codes)
 
-    if selected:
-        st.session_state["mrp_codes"] = selected
-        st.success("Sélection enregistrée. Vous pouvez consulter le Dashboard.")
+            if selected:
+                st.session_state["mrp_codes"] = selected
+                st.success("Sélection enregistrée. Vous pouvez consulter le Dashboard.")
