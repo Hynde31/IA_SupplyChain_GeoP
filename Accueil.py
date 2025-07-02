@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 
+st.set_page_config(page_title="Accueil - Résilience Supply Chain", layout="wide")
+
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
     try:
@@ -21,11 +23,7 @@ else:
         st.warning("La colonne 'Portefeuille' est absente du fichier CSV.")
     else:
         mrp_codes = df["Portefeuille"].dropna().unique()
-        if len(mrp_codes) == 0:
-            st.warning("Aucun portefeuille MRP trouvé dans le fichier CSV. Merci de vérifier votre fichier.")
-        else:
-            selected = st.multiselect("Sélectionnez un ou plusieurs portefeuilles MRP :", mrp_codes)
-
-            if selected:
-                st.session_state["mrp_codes"] = selected
-                st.success("Sélection enregistrée. Vous pouvez consulter le Dashboard.")
+        selected = st.multiselect("Sélectionnez un ou plusieurs portefeuilles MRP :", mrp_codes)
+        if selected:
+            st.session_state["mrp_codes"] = selected
+            st.success("Sélection enregistrée. Vous pouvez consulter le Dashboard.")
