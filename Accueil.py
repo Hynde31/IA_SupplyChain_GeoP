@@ -9,15 +9,18 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
         df = pd.read_csv(path).fillna("")
         return df
     except Exception as e:
-        st.error(f"Erreur lors du chargement des portefeuilles : {e}")
+        st.error(f"Erreur lors du chargement du fichier : {e}")
         return pd.DataFrame()
 
 df = load_suppliers()
 
 st.title("🏠 Accueil - Résilience Supply Chain Airbus")
 
+st.write("Colonnes détectées :", df.columns.tolist())
+st.dataframe(df)
+
 if df.empty:
-    st.warning("Aucun portefeuille MRP trouvé dans le fichier CSV. Merci de vérifier votre fichier.")
+    st.warning("Aucun portefeuille MRP trouvé dans le fichier CSV.")
 else:
     if "Portefeuille" not in df.columns:
         st.warning("La colonne 'Portefeuille' est absente du fichier CSV.")
