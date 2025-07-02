@@ -1,4 +1,10 @@
 import streamlit as st
+
+# Statistiques globales
+st.metric("CA total fournisseurs Airbus (M€)", int(df_sup["CA annuel (M€)"].sum()))
+st.metric("Volume total pièces/an", int(df_sup["Volume pièces/an"].sum()))
+st.metric("Dépendance moyenne Airbus (%)", f"{df_sup['Dépendance Airbus (%)'].mean():.1f}%")
+st.metric("Délai moyen global", f"{df_sup['Délai moyen (jours)'].mean():.1f} jours")
 import pandas as pd
 import pydeck as pdk
 import numpy as np
