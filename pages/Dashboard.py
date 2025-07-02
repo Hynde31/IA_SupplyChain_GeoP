@@ -4,6 +4,7 @@ import pydeck as pdk
 import numpy as np
 from geo_zones import ZONES_GEO
 from ai_models import geopolitical_risk_score
+from mapping import mrp_colors, cities_coords, generate_legend
 
 st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
@@ -13,35 +14,12 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     df = df.fillna("")
     return df
 
-# Dictionnaire villes -> coordonnées GPS (exemple, à compléter selon tes besoins !)
-cities_coords = {
-    "Kyriat Gat": (31.6097, 34.7604),
-    "Rousset": (43.4285, 5.5872),
-    "Shizuoka": (34.9756, 138.3828),
-    "Bensheim": (49.6803, 8.6195),
-    "Haïfa": (32.7940, 34.9896),
-    "Angers": (47.4784, -0.5632),
-    "Shanghai": (31.2304, 121.4737),
-    "Beersheba": (31.2518, 34.7913),
-    "Kyoto": (35.0116, 135.7681),
-    # Ajoute ici toutes les villes qui apparaissent dans ton CSV !
-}
-
-# Couleurs par portefeuille MRP
-mrp_colors = {
-    "HEL": [57, 106, 177],
-    "EBE": [218, 124, 48],
-    "DWI": [62, 150, 81],
-    "DEFAULT": [200, 200, 200],
-}
-
-# Chargement du CSV
+# Chargement des données
 df_sup = load_suppliers()
 if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
     st.stop()
 
-# Lecture du portefeuille sélectionné
 if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
     mrp_selected = [str(code).strip().upper() for code in st.session_state["mrp_codes"]]
 else:
@@ -51,42 +29,30 @@ else:
 df_sup["Portefeuille"] = df_sup["Portefeuille"].astype(str).str.strip().str.upper()
 df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
 
-# Attribution coordonnées GPS
+# Attribution coordonnées
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[0])
 df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[1])
-df_sup["Latitude"] = pd.to_numeric(df_sup["Latitude"], errors="coerce")
-df_sup["Longitude"] = pd.to_numeric(df_sup["Longitude"], errors="coerce")
 df_sup["Coordonnée connue"] = (~df_sup["Latitude"].isna()) & (~df_sup["Longitude"].isna())
 
-# Calculs risques et couleurs
+# Calcul des risques
 df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
 df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
-df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(
-    lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"])
-)
+df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"]))
+df_sup["type"] = "Fournisseur"
 
-# Filtrage fournisseurs localisables et du portefeuille choisi
-df_sup_display = df_sup[
-    (df_sup["Portefeuille"].isin(mrp_selected)) & (df_sup["Coordonnée connue"])
-].copy()
-df_sup_display["type"] = "Fournisseur"
-
-# Ajout des zones géopolitiques
+# Zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo["Couleur MRP"] = df_geo["Couleur"]
-df_geo["type"] = df_geo["type"]
+df_geo["type"] = "Zone"
 
-df_map = pd.concat([df_sup_display, df_geo], ignore_index=True)
+df_map = pd.concat([df_sup, df_geo], ignore_index=True)
 
-# Centre de la carte
-if not df_sup_display.empty:
-    center_lat = df_sup_display["Latitude"].mean()
-    center_lon = df_sup_display["Longitude"].mean()
-else:
-    center_lat, center_lon = 46.7, 2.4  # Centre France
+# Vue cartographique
+center_lat = df_sup["Latitude"].mean() if not df_sup["Latitude"].isna().all() else 46.7
+center_lon = df_sup["Longitude"].mean() if not df_sup["Longitude"].isna().all() else 2.4
 
 layer = pdk.Layer(
     "ScatterplotLayer",
@@ -98,52 +64,7 @@ layer = pdk.Layer(
     auto_highlight=True,
 )
 
-view_state = pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=2.1, pitch=0)
 tooltip = {
     "html": """
     <b>Type:</b> {type}<br>
     <b>MRP:</b> {Portefeuille}<br>
-    <b>Fournisseur:</b> {Fournisseur}<br>
-    <b>Pays:</b> {Pays}<br>
-    <b>Ville:</b> {Ville}<br>
-    <b>Score risque:</b> {Score (%)}/100<br>
-    <b>Alerte:</b> {Alerte}
-    """,
-    "style": {"backgroundColor": "#262730", "color": "white"}
-}
-
-st.subheader(f"🌍 Carte des fournisseurs du portefeuille {', '.join(mrp_selected)} et des zones à risque")
-
-if df_sup_display.empty:
-    st.warning("Aucun fournisseur localisable pour ce portefeuille (ville inconnue ou portefeuille vide).")
-    villes_absentes = df_sup[
-        (df_sup["Portefeuille"].isin(mrp_selected)) & (~df_sup["Coordonnée connue"])
-    ][["Fournisseur", "Ville", "Portefeuille"]]
-    if not villes_absentes.empty:
-        st.info("Villes absentes du dictionnaire de coordonnées (à ajouter dans cities_coords pour affichage sur la carte) :")
-        st.dataframe(villes_absentes, use_container_width=True, hide_index=True)
-    st.stop()
-else:
-    st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip=tooltip))
-
-    # Légende dynamique adaptée
-    legend_lines = ["**Légende carte :**"]
-    color_hex = lambda rgb: f"rgb({rgb[0]},{rgb[1]},{rgb[2]})"
-    for mrp in mrp_selected:
-        col = color_hex(mrp_colors.get(mrp, mrp_colors["DEFAULT"]))
-        legend_lines.append(
-            f'- <span style="color:{col};font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>{mrp}</b>'
-        )
-    legend_lines.append('- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>')
-    legend_lines.append('- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>')
-    st.markdown("\n".join(legend_lines), unsafe_allow_html=True)
-
-    st.divider()
-    st.subheader(f"📊 Fournisseurs du portefeuille {', '.join(mrp_selected)} localisables sur la carte")
-    st.dataframe(
-        df_sup_display[
-            ["Portefeuille", "Fournisseur", "Pays", "Ville", "Latitude", "Longitude", "Score (%)", "Alerte"]
-        ],
-        use_container_width=True,
-        hide_index=True
-    )
