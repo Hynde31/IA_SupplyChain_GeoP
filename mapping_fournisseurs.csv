@@ -1,8 +1,8 @@
-Portefeuille,Fournisseur,Pays,Ville,Score fournisseur
-HEL,Thales Avionics,France,Toulouse,0.2
-HEL,Collins Aerospace,USA,Cedar Rapids,0.3
-HEL,Spirit AeroSystems,UK,Belfast,0.6
-EBE,Diehl Aviation,Allemagne,Hamburg,0.2
-EBE,Expliseat,France,Paris,0.3
-EBE,AVIC Cabin Systems,Chine,Shanghai,0.7
-EBE,Ural Aviation Comp.,Russie,Ekaterinburg,0.9
+Portefeuille,Fournisseur,Pays,Ville,Score fournisseur,CA annuel (M€),Dépendance Airbus (%),Délai moyen (jours),Volume pièces/an
+HEL,Thales Avionics,France,Toulouse,0.2,500,65,10,25000
+HEL,Collins Aerospace,USA,Cedar Rapids,0.3,300,40,22,18000
+HEL,Spirit AeroSystems,UK,Belfast,0.6,150,85,17,8000
+EBE,Diehl Aviation,Allemagne,Hamburg,0.2,220,55,13,15000
+EBE,AVIC Cabin Systems,Chine,Shanghai,0.7,110,70,45,7000
+EBE,Ural Aviation Comp.,Russie,Ekaterinburg,0.9,80,95,41,4000
+EBE,Expliseat,France,Paris,0.3,40,60,15,1200
