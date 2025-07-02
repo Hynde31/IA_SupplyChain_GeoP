@@ -1,4 +1,19 @@
+def geopolitical_risk_score(row, zones_geo):
+    """
+    Calcule un score de risque géopolitique pour un fournisseur donné,
+    en fonction de sa localisation et des zones à risque définies.
+    """
+    base_score = float(row.get("Score fournisseur", 0.3))
+    pays = row.get("Pays", "").strip()
+    for zone in zones_geo:
+        if pays.lower() == zone["Nom"].lower():
+            return min(1.0, base_score + zone.get("Impact", 0.5))
+    return base_score
+
 def recommend_actions(df):
+    """
+    Génère des recommandations stratégiques en fonction du score de risque.
+    """
     recs = []
     for _, row in df.iterrows():
         score = row.get("Score risque géopolitique", 0)
