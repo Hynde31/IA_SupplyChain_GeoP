@@ -1,19 +1,17 @@
 import streamlit as st
 import pandas as pd
-from suppliers_data import load_suppliers
 
-st.title("AIRBUS - Résilience Supply Chain")
+@st.cache_data
+def load_suppliers(path="mapping_fournisseurs.csv"):
+    return pd.read_csv(path).fillna("")
 
-# Chargement des données
-suppliers = load_suppliers()
+df = load_suppliers()
+mrp_codes = df["Portefeuille"].dropna().unique()
 
-# Filtres
-mrp = st.selectbox("Sélectionnez un MRP Code", options=suppliers["MRP Code"].unique())
-cat = st.selectbox("Sélectionnez une catégorie", options=suppliers["Category"].unique())
+st.title("🏠 Accueil - Résilience Supply Chain Airbus")
 
-filtered = suppliers[(suppliers["MRP Code"] == mrp) & (suppliers["Category"] == cat)]
+selected = st.multiselect("Sélectionnez un ou plusieurs portefeuilles MRP :", mrp_codes)
 
-st.subheader("Fournisseurs filtrés")
-st.dataframe(filtered)
-
-st.markdown("📌 Rendez-vous sur le Dashboard pour la cartographie des risques.")
+if selected:
+    st.session_state["mrp_codes"] = selected
+    st.success("Sélection enregistrée. Vous pouvez consulter le Dashboard.")
