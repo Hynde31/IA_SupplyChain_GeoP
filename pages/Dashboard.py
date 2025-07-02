@@ -12,22 +12,27 @@ st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 def load_suppliers(path="mapping_fournisseurs.csv"):
     return pd.read_csv(path).fillna("")
 
-# 1. Chargement des données
 df_sup = load_suppliers()
 if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
     st.stop()
 
-# 2. Sélection des portefeuilles HEL et EBE uniquement
-portefeuille_col = [col for col in df_sup.columns if col.strip().lower() == "portefeuille"]
-if portefeuille_col:
-    portefeuille_col = portefeuille_col[0]
+# 1. Récupérer le(s) portefeuille(s) sélectionné(s) depuis la session
+mrp_selected = st.session_state.get("mrp_codes", [])
+if not mrp_selected:
+    st.error("Aucun portefeuille MRP sélectionné. Retournez à l'accueil pour choisir votre portefeuille.")
+    st.stop()
+
+# 2. Filtrer les données en fonction du/des portefeuille(s) choisis
+col_portefeuille = [col for col in df_sup.columns if col.strip().lower() == "portefeuille"]
+if col_portefeuille:
+    col_portefeuille = col_portefeuille[0]
 else:
     st.error("La colonne 'Portefeuille' est absente du CSV.")
     st.stop()
 
-df_sup[portefeuille_col] = df_sup[portefeuille_col].astype(str).str.strip().str.upper()
-df_sup = df_sup[df_sup[portefeuille_col].isin(["HEL", "EBE"])]
+df_sup[col_portefeuille] = df_sup[col_portefeuille].astype(str).str.strip().str.upper()
+df_sup = df_sup[df_sup[col_portefeuille].isin(mrp_selected)]
 
 # 3. Géolocalisation fournisseurs
 df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
@@ -40,7 +45,7 @@ df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
-df_sup["Couleur MRP"] = df_sup[portefeuille_col].apply(lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"]))
+df_sup["Couleur MRP"] = df_sup[col_portefeuille].apply(lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"]))
 df_sup["type"] = "Fournisseur"
 
 # 5. Préparation zones géopolitiques
@@ -82,7 +87,9 @@ tooltip = {
     "style": {"backgroundColor": "#262730", "color": "white"}
 }
 
-st.markdown("## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuilles HEL & EBE")
+st.markdown(
+    f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(mrp_selected)>1 else ''} {', '.join(mrp_selected)}"
+)
 st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
 st.pydeck_chart(
     pdk.Deck(
@@ -91,7 +98,7 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-st.markdown(generate_legend(["HEL", "EBE"]), unsafe_allow_html=True)
+st.markdown(generate_legend(mrp_selected), unsafe_allow_html=True)
 
 # 7. KPIs pertinents pour la prévention des retards/manquants
 st.markdown("---")
@@ -134,7 +141,7 @@ st.markdown("---")
 st.markdown("### 📋 Détail des fournisseurs suivis")
 st.dataframe(
     df_sup[
-        [portefeuille_col, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance Airbus (%)", "Délai moyen (jours)", "Volume pièces/an"]
+        [col_portefeuille, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance Airbus (%)", "Délai moyen (jours)", "Volume pièces/an"]
         if "CA annuel (M€)" in df_sup.columns else df_sup.columns
     ],
     use_container_width=True,
