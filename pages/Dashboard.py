@@ -1,10 +1,4 @@
 import streamlit as st
-
-# Statistiques globales
-st.metric("CA total fournisseurs Airbus (M€)", int(df_sup["CA annuel (M€)"].sum()))
-st.metric("Volume total pièces/an", int(df_sup["Volume pièces/an"].sum()))
-st.metric("Dépendance moyenne Airbus (%)", f"{df_sup['Dépendance Airbus (%)'].mean():.1f}%")
-st.metric("Délai moyen global", f"{df_sup['Délai moyen (jours)'].mean():.1f} jours")
 import pandas as pd
 import pydeck as pdk
 import numpy as np
@@ -16,51 +10,58 @@ st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
 @st.cache_data
 def load_suppliers(path="mapping_fournisseurs.csv"):
-    df = pd.read_csv(path).fillna("")
-    return df
+    return pd.read_csv(path).fillna("")
 
+# 1. Chargement des données
 df_sup = load_suppliers()
-
 if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
     st.stop()
 
-if "mrp_codes" in st.session_state and st.session_state["mrp_codes"]:
-    mrp_selected = [str(code).strip().upper() for code in st.session_state["mrp_codes"]]
+# 2. Sélection des portefeuilles HEL et EBE uniquement
+portefeuille_col = [col for col in df_sup.columns if col.strip().lower() == "portefeuille"]
+if portefeuille_col:
+    portefeuille_col = portefeuille_col[0]
 else:
-    st.error("Aucun portefeuille MRP sélectionné. Retournez à l'accueil.")
+    st.error("La colonne 'Portefeuille' est absente du CSV.")
     st.stop()
 
-df_sup["Portefeuille"] = df_sup["Portefeuille"].astype(str).str.strip().str.upper()
-df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
+df_sup[portefeuille_col] = df_sup[portefeuille_col].astype(str).str.strip().str.upper()
+df_sup = df_sup[df_sup[portefeuille_col].isin(["HEL", "EBE"])]
 
+# 3. Géolocalisation fournisseurs
+df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[0])
 df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[1])
-df_sup["Coordonnée connue"] = (~df_sup["Latitude"].isna()) & (~df_sup["Longitude"].isna())
 
+# 4. Score risque géopolitique
 df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
 df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
-df_sup["Couleur MRP"] = df_sup["Portefeuille"].apply(lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"]))
+df_sup["Couleur MRP"] = df_sup[portefeuille_col].apply(lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"]))
 df_sup["type"] = "Fournisseur"
 
+# 5. Préparation zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
 df_geo["Couleur MRP"] = df_geo["Couleur"]
-df_geo["type"] = "Zone"
+df_geo["type"] = "Crise géopolitique"
+df_geo["Fournisseur"] = ""
+df_geo["Pays"] = df_geo["Nom"]
 
-df_map = pd.concat([df_sup, df_geo], ignore_index=True)
+# 6. Fusion pour la map
+df_map = pd.concat([df_sup, df_geo], ignore_index=True, sort=False)
 
-center_lat = df_sup["Latitude"].mean() if not df_sup["Latitude"].isna().all() else 46.7
-center_lon = df_sup["Longitude"].mean() if not df_sup["Longitude"].isna().all() else 2.4
+center_lat = np.nanmean(df_sup["Latitude"]) if not df_sup["Latitude"].isna().all() else 46.7
+center_lon = np.nanmean(df_sup["Longitude"]) if not df_sup["Longitude"].isna().all() else 2.4
 
 layer = pdk.Layer(
     "ScatterplotLayer",
     data=df_map,
     get_position='[Longitude, Latitude]',
     get_color="Couleur MRP",
-    get_radius=60000,
+    get_radius=70000,
     pickable=True,
     auto_highlight=True,
 )
@@ -75,12 +76,14 @@ tooltip = {
     <b>Score risque:</b> {Score (%)} / 100<br>
     <b>Alerte:</b> {Alerte}<br>
     <b>Zone:</b> {Nom}<br>
-    <b>Description:</b> {Description}
+    <b>Description:</b> {Description}<br>
+    <b>Cas:</b> {Cas}
     """,
     "style": {"backgroundColor": "#262730", "color": "white"}
 }
 
-st.subheader(f"🌍 Carte des fournisseurs et zones géopolitiques - Portefeuille {', '.join(mrp_selected)}")
+st.markdown("## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuilles HEL & EBE")
+st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
 st.pydeck_chart(
     pdk.Deck(
         layers=[layer],
@@ -88,12 +91,51 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-st.markdown(generate_legend(mrp_selected), unsafe_allow_html=True)
-st.divider()
-st.subheader("📊 Détail des fournisseurs")
+st.markdown(generate_legend(["HEL", "EBE"]), unsafe_allow_html=True)
+
+# 7. KPIs pertinents pour la prévention des retards/manquants
+st.markdown("---")
+st.markdown("### 📊 Indicateurs de risque et prévention des retards/manquants")
+
+def kpi_fmt(val, unit="", percent=False):
+    if pd.isnull(val): return "-"
+    if percent:
+        return f"{val:.1f}%"
+    elif isinstance(val, float):
+        return f"{val:.1f} {unit}".strip()
+    else:
+        return f"{val} {unit}".strip()
+
+kpi_cols = {
+    "CA annuel (M€)": ("CA total fournisseurs (M€)", False),
+    "Volume pièces/an": ("Volume total pièces/an", False),
+    "Dépendance Airbus (%)": ("Dépendance moyenne Airbus", True),
+    "Délai moyen (jours)": ("Délai moyen global (jours)", False),
+    "Score (%)": ("Score moyen risque géopolitique", True),
+}
+cols = st.columns(len(kpi_cols))
+for i, (csv_col, (label, is_percent)) in enumerate(kpi_cols.items()):
+    if csv_col in df_sup.columns:
+        if is_percent:
+            val = df_sup[csv_col].mean()
+            show_val = kpi_fmt(val, percent=True)
+        elif "Score" in label:
+            val = df_sup[csv_col].mean()
+            show_val = kpi_fmt(val, unit="/100")
+        else:
+            val = df_sup[csv_col].sum()
+            show_val = kpi_fmt(val)
+        cols[i].metric(label, show_val)
+    else:
+        cols[i].error(f"Colonne absente : {csv_col}")
+
+# 8. Dataframe détaillé
+st.markdown("---")
+st.markdown("### 📋 Détail des fournisseurs suivis")
 st.dataframe(
     df_sup[
-        ["Portefeuille", "Fournisseur", "Pays", "Ville", "Latitude", "Longitude", "Score (%)", "Alerte"]
+        [portefeuille_col, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance Airbus (%)", "Délai moyen (jours)", "Volume pièces/an"]
+        if "CA annuel (M€)" in df_sup.columns else df_sup.columns
     ],
     use_container_width=True,
     hide_index=True
