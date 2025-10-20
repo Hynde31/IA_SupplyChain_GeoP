@@ -8,7 +8,7 @@ st.set_page_config(
 )
 
 st.markdown("""
-# ✈️ Plateforme de Résilience Supply Chain
+# 🧠🌍 Plateforme de Résilience Supply Chain
 
 Bienvenue sur la plateforme de pilotage intelligente dédiée à la résilience de la supply chain aéronautique face aux risques géopolitiques.
 
