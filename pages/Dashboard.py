@@ -4,7 +4,7 @@ import pydeck as pdk
 import numpy as np
 from geo_zones import ZONES_GEO
 from ai_models import geopolitical_risk_score
-from mapping import ID_colors, cities_coords, generate_legend
+from mapping import MRP_colors, cities_coords, generate_legend
 
 st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
@@ -147,4 +147,5 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
+
 
