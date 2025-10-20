@@ -17,45 +17,45 @@ Cette solution vous permet d’analyser, visualiser et anticiper les impacts des
 ---
 """)
 
-# Section de sélection ou ajout de codes MRP
-st.markdown("## 🔢 Sélection ou ajout d'un code portefeuille MRP")
+# Section de sélection ou ajout de codes ID
+st.markdown("## 🔢 Sélection ou ajout d'un code portefeuille ID")
 
-# Récupérer les codes MRP déjà présents en session ou les initialiser
-if "mrp_codes" not in st.session_state:
-    st.session_state["mrp_codes"] = []
+# Récupérer les codes ID déjà présents en session ou les initialiser
+if "ID_codes" not in st.session_state:
+    st.session_state["ID_codes"] = []
 
-current_codes = st.session_state["mrp_codes"]
+current_codes = st.session_state["ID_codes"]
 
 # Affichage de la liste actuelle
 if current_codes:
-    st.markdown("**Codes MRP sélectionnés actuellement :**")
+    st.markdown("**Codes ID sélectionnés actuellement :**")
     st.write(", ".join(current_codes))
 else:
-    st.info("Aucun code MRP sélectionné pour l'instant.")
+    st.info("Aucun code ID sélectionné pour l'instant.")
 
-# Entrée pour ajouter un nouveau code MRP
+# Entrée pour ajouter un nouveau code ID
 new_code = st.text_input(
-    "Ajouter un code MRP (exemple : HEL, EBE)", 
+    "Ajouter un code ID (exemple : HEL, EBE)", 
     max_chars=10, 
     help="Entrez un code portefeuille puis validez pour l'ajouter à votre sélection."
 ).strip().upper()
 
-if st.button("Ajouter ce code MRP"):
+if st.button("Ajouter ce code ID"):
     if new_code and new_code not in current_codes:
-        st.session_state["mrp_codes"].append(new_code)
-        st.success(f"Code MRP '{new_code}' ajouté !")
+        st.session_state["ID_codes"].append(new_code)
+        st.success(f"Code ID '{new_code}' ajouté !")
     elif not new_code:
-        st.warning("Veuillez saisir un code MRP avant d'ajouter.")
+        st.warning("Veuillez saisir un code ID avant d'ajouter.")
     else:
-        st.info(f"Le code MRP '{new_code}' est déjà dans la liste.")
+        st.info(f"Le code ID '{new_code}' est déjà dans la liste.")
 
 # Option pour réinitialiser la sélection
-if st.button("Réinitialiser la sélection des codes MRP"):
-    st.session_state["mrp_codes"] = []
-    st.info("Sélection des codes MRP réinitialisée.")
+if st.button("Réinitialiser la sélection des codes ID"):
+    st.session_state["ID_codes"] = []
+    st.info("Sélection des codes ID réinitialisée.")
 
 # Astuce UX
 st.caption("""
-*Votre sélection de codes MRP personnalise tous les dashboards et analyses de la plateforme. 
+*Votre sélection de codes ID personnalise tous les dashboards et analyses de la plateforme. 
 Rendez-vous dans le menu Accueil ou Dashboard pour explorer vos données fournisseurs selon vos choix.*
 """)
