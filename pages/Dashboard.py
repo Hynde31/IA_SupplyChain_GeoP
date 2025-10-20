@@ -90,7 +90,7 @@ tooltip = {
 st.markdown(
     f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
 )
-st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
+st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement .")
 st.pydeck_chart(
     pdk.Deck(
         layers=[layer],
@@ -116,7 +116,7 @@ def kpi_fmt(val, unit="", percent=False):
 kpi_cols = {
     "CA annuel (M€)": ("CA total fournisseurs (M€)", False),
     "Volume pièces/an": ("Volume total pièces/an", False),
-    "Dépendance Airbus (%)": ("Dépendance moyenne Airbus", True),
+    "Dépendance  (%)": ("Dépendance moyenne ", True),
     "Délai moyen (jours)": ("Délai moyen global (jours)", False),
     "Score (%)": ("Score moyen risque géopolitique", True),
 }
@@ -141,9 +141,10 @@ st.markdown("---")
 st.markdown("### 📋 Détail des fournisseurs suivis")
 st.dataframe(
     df_sup[
-        [col_portefeuille, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance Airbus (%)", "Délai moyen (jours)", "Volume pièces/an"]
+        [col_portefeuille, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance  (%)", "Délai moyen (jours)", "Volume pièces/an"]
         if "CA annuel (M€)" in df_sup.columns else df_sup.columns
     ],
     use_container_width=True,
     hide_index=True
 )
+
