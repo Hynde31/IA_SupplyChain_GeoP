@@ -4,7 +4,7 @@ import pydeck as pdk
 import numpy as np
 import traceback
 
-# Imports protégés pour faciliter le debug si un module manque
+# Imports
 try:
     from geo_zones import ZONES_GEO
 except Exception:
@@ -19,7 +19,6 @@ except Exception:
     st.text(traceback.format_exc())
     st.stop()
 
-# mapping.py expose ID_colors, cities_coords, generate_legend
 try:
     from mapping import ID_colors, cities_coords, generate_legend
 except Exception:
@@ -36,15 +35,15 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
 df_sup = load_suppliers()
 if df_sup.empty:
     st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
-    st.stop()
+    # On continue quand même pour afficher les zones si besoin
 
-# 1. Récupérer le(s) portefeuille(s) sélectionné(s) depuis la session
+# 1. Portefeuille(s) sélectionné(s)
 ID_selected = st.session_state.get("ID_codes", [])
 if not ID_selected:
     st.error("Aucun portefeuille ID sélectionné. Retournez à l'accueil pour choisir votre portefeuille.")
     st.stop()
 
-# 2. Filtrer les données en fonction du/des portefeuille(s) choisis
+# 2. Filtrer par portefeuille
 col_portefeuille = [col for col in df_sup.columns if col.strip().lower() == "portefeuille"]
 if col_portefeuille:
     col_portefeuille = col_portefeuille[0]
@@ -53,45 +52,35 @@ else:
     st.stop()
 
 df_sup[col_portefeuille] = df_sup[col_portefeuille].astype(str).str.strip().str.upper()
-df_sup = df_sup[df_sup[col_portefeuille].isin(ID_selected)]
+df_sup = df_sup[df_sup[col_portefeuille].isin(ID_selected)].copy()
 
-# 3. Géolocalisation fournisseurs (cities_coords stocke (lat, lon))
+# 3. Géolocalisation (cities_coords fournit (lat, lon))
 df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[0])
 df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[1])
 
-# 4. Score risque géopolitique
+# 4. Scores et colonnes propres pour tooltip
 df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
 df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
-df_sup["Score_pct"] = df_sup["Score (%)"]  # colonne sans espaces pour tooltip si besoin
-df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
-    lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
-)
-
-# Créer une colonne "Portefeuille" propre pour le tooltip (nom de colonne stable)
+df_sup["Score_pct"] = df_sup["Score (%)"]  # colonne sans espaces pour tooltip
+df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK"))
 df_sup["Portefeuille"] = df_sup[col_portefeuille]
+df_sup["type"] = "Fournisseur"
+df_sup["label"] = df_sup.get("Fournisseur", df_sup.get(col_portefeuille, ""))
 
-#  --- Couleurs : utiliser le dict ID_colors fourni dans mapping.py ---
+# 5. Couleurs : normaliser vers [r,g,b,a]
 def ensure_rgba(col):
-    # Renvoie une liste [r,g,b,a] utilisable par pydeck
     if not isinstance(col, (list, tuple)):
         return [200, 200, 200, 255]
     col = list(col)
     if len(col) == 3:
         col.append(255)
-    if len(col) >= 4:
-        return [int(col[0]), int(col[1]), int(col[2]), int(col[3])]
-    return [200, 200, 200, 255]
+    return [int(col[0]), int(col[1]), int(col[2]), int(col[3])]
 
 color_dict = ID_colors if isinstance(ID_colors, dict) else {}
+df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(lambda x: ensure_rgba(color_dict.get(x, color_dict.get("DEFAULT", [200,200,200]))))
 
-df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(
-    lambda x: ensure_rgba(color_dict.get(x, color_dict.get("DEFAULT", [200,200,200])))
-)
-df_sup["type"] = "Fournisseur"
-df_sup["label"] = df_sup.get("Fournisseur", df_sup.get(col_portefeuille, ""))
-
-# 5. Préparation zones géopolitiques
+# 6. Zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO).copy()
 df_geo["Latitude"] = pd.to_numeric(df_geo["Latitude"], errors="coerce")
 df_geo["Longitude"] = pd.to_numeric(df_geo["Longitude"], errors="coerce")
@@ -101,59 +90,69 @@ df_geo["Fournisseur"] = ""
 df_geo["Pays"] = df_geo["Nom"]
 df_geo["label"] = df_geo["Nom"]
 
-# 6. Fusion (utile pour certains calculs), mais on travaillera avec deux tables
-df_map = pd.concat([df_sup, df_geo], ignore_index=True, sort=False)
-
-# Préparer dataframes pour les layers
-suppliers_layer_df = df_sup.copy()
-zones_layer_df = df_geo.copy()
-
-# --- Debug / validation des données pour la carte ---
-# Forcer numérique
-suppliers_layer_df["Latitude"] = pd.to_numeric(suppliers_layer_df["Latitude"], errors="coerce")
-suppliers_layer_df["Longitude"] = pd.to_numeric(suppliers_layer_df["Longitude"], errors="coerce")
-zones_layer_df["Latitude"] = pd.to_numeric(zones_layer_df["Latitude"], errors="coerce")
-zones_layer_df["Longitude"] = pd.to_numeric(zones_layer_df["Longitude"], errors="coerce")
-
-n_sup = len(suppliers_layer_df)
-n_sup_valid = suppliers_layer_df.dropna(subset=["Latitude", "Longitude"]).shape[0]
-n_zones = len(zones_layer_df)
-n_zones_valid = zones_layer_df.dropna(subset=["Latitude", "Longitude"]).shape[0]
-
-st.write(f"Fournisseurs total: {n_sup} — avec coords valides: {n_sup_valid}")
-if n_sup_valid:
-    st.dataframe(suppliers_layer_df.dropna(subset=["Latitude", "Longitude"])[["Fournisseur", "Ville", "Latitude", "Longitude", "Portefeuille", "Score (%)"]].head(20))
+# 7. Créer colonne 'coordinates' [lon, lat] pour pydeck (plus fiable)
+# Pour fournisseurs
+if "Latitude" in df_sup.columns and "Longitude" in df_sup.columns:
+    df_sup["Latitude"] = pd.to_numeric(df_sup["Latitude"], errors="coerce")
+    df_sup["Longitude"] = pd.to_numeric(df_sup["Longitude"], errors="coerce")
+    df_sup["coordinates"] = df_sup.apply(lambda r: [float(r["Longitude"]), float(r["Latitude"])] if pd.notna(r["Latitude"]) and pd.notna(r["Longitude"]) else None, axis=1)
 else:
-    st.info("Aucun fournisseur géolocalisé — vérifiez le nom des villes dans mapping_fournisseurs.csv et mapping.cities_coords")
+    df_sup["coordinates"] = None
 
-st.write(f"Zones total: {n_zones} — avec coords valides: {n_zones_valid}")
-if n_zones_valid:
-    st.dataframe(zones_layer_df.dropna(subset=["Latitude", "Longitude"])[["Nom", "Latitude", "Longitude", "Impact"]].head(20))
-else:
-    st.info("Aucune zone géopolitique géolocalisée dans ZONES_GEO")
+# Pour zones
+df_geo["coordinates"] = df_geo.apply(lambda r: [float(r["Longitude"]), float(r["Latitude"])] if pd.notna(r["Latitude"]) and pd.notna(r["Longitude"]) else None, axis=1)
 
-# Filtrer réellement
-suppliers_layer_df = suppliers_layer_df.dropna(subset=["Latitude", "Longitude"]).copy()
-zones_layer_df = zones_layer_df.dropna(subset=["Latitude", "Longitude"]).copy()
+# Option test: injecter points visibles pour debug / démonstration
+with st.expander("Options carte"):
+    test_points = st.checkbox("Afficher points de test (montrer des points visibles)", value=False)
+    labels_only_zones = st.checkbox("Afficher uniquement labels pour les zones (réduit le bruit)", value=True)
 
+if test_points:
+    # Prendre quelques villes connues de cities_coords et créer un petit DF test
+    test_rows = []
+    for name, (lat, lon) in list(cities_coords.items())[:6]:
+        # Note: cities_coords stored as (lat, lon)
+        # but coordinates must be [lon, lat]
+        test_rows.append({
+            "Fournisseur": f"TEST - {name}",
+            "Ville": name,
+            "Latitude": lat,
+            "Longitude": lon,
+            "coordinates": [lon, lat],
+            "Couleur ID": ensure_rgba([100, 150, 250]),
+            "Portefeuille": "TEST",
+            "Score_pct": 10.0,
+            "Alerte": "🟩 OK",
+            "type": "Fournisseur",
+            "label": f"TEST - {name}"
+        })
+    df_test = pd.DataFrame(test_rows)
+    # concat to suppliers for display
+    df_sup = pd.concat([df_sup, df_test], ignore_index=True)
+    # ensure suppliers coordinates exist
+    df_sup["coordinates"] = df_sup.apply(lambda r: r["coordinates"] if pd.notna(r.get("coordinates")) else None, axis=1)
+
+# 8. Filtrer points valides
+suppliers_layer_df = df_sup[df_sup["coordinates"].notna()].copy()
+zones_layer_df = df_geo[df_geo["coordinates"].notna()].copy()
+
+# Si rien côté fournisseurs, on garde quand même zones_layer_df (la légende & zones doivent s'afficher)
 if suppliers_layer_df.empty and zones_layer_df.empty:
-    st.warning("Aucun point géolocalisé à afficher. Vérifiez les noms de villes et le fichier mapping_fournisseurs.csv.")
+    st.warning("Aucun point géolocalisé à afficher. Activez 'Afficher points de test' pour vérifier l'affichage.")
 else:
-    # Calcul du centre et du zoom en fonction de l'étendue
-    all_pts = pd.concat([
-        suppliers_layer_df[["Latitude", "Longitude"]],
-        zones_layer_df[["Latitude", "Longitude"]]
+    # Calcul du centre & zoom basé sur tous les coords
+    all_coords = pd.concat([
+        suppliers_layer_df[["coordinates"]].dropna().assign(lon=lambda d: d["coordinates"].map(lambda c: c[0]), lat=lambda d: d["coordinates"].map(lambda c: c[1])),
+        zones_layer_df[["coordinates"]].dropna().assign(lon=lambda d: d["coordinates"].map(lambda c: c[0]), lat=lambda d: d["coordinates"].map(lambda c: c[1]))
     ], ignore_index=True)
 
-    center_lat = float(all_pts["Latitude"].mean())
-    center_lon = float(all_pts["Longitude"].mean())
-
-    lat_min, lat_max = all_pts["Latitude"].min(), all_pts["Latitude"].max()
-    lon_min, lon_max = all_pts["Longitude"].min(), all_pts["Longitude"].max()
-    lat_span = (lat_max - lat_min) if pd.notna(lat_max) and pd.notna(lat_min) else 180
-    lon_span = (lon_max - lon_min) if pd.notna(lon_max) and pd.notna(lon_min) else 360
+    center_lat = float(all_coords["lat"].mean())
+    center_lon = float(all_coords["lon"].mean())
+    lat_min, lat_max = all_coords["lat"].min(), all_coords["lat"].max()
+    lon_min, lon_max = all_coords["lon"].min(), all_coords["lon"].max()
+    lat_span = lat_max - lat_min if pd.notna(lat_max) and pd.notna(lat_min) else 180
+    lon_span = lon_max - lon_min if pd.notna(lon_max) and pd.notna(lon_min) else 360
     span = max(lat_span, lon_span)
-
     if span < 0.5:
         zoom = 6.0
     elif span < 3:
@@ -163,18 +162,18 @@ else:
     else:
         zoom = 2.1
 
-    # Rayons : ajuster si besoin
+    # Rayons
     suppliers_layer_df["radius"] = suppliers_layer_df.get("radius", 30000)
     if "Impact" in zones_layer_df.columns:
         zones_layer_df["radius"] = zones_layer_df["Impact"].apply(lambda x: max(80000, float(x) * 300000))
     else:
         zones_layer_df["radius"] = 200000
 
-    # Layers
+    # Layers en utilisant la colonne 'coordinates'
     zones_layer = pdk.Layer(
         "ScatterplotLayer",
         data=zones_layer_df,
-        get_position='[Longitude, Latitude]',
+        get_position="coordinates",
         get_color="Couleur ID",
         get_radius="radius",
         radius_scale=1.2,
@@ -187,7 +186,7 @@ else:
     suppliers_layer = pdk.Layer(
         "ScatterplotLayer",
         data=suppliers_layer_df,
-        get_position='[Longitude, Latitude]',
+        get_position="coordinates",
         get_color="Couleur ID",
         get_radius="radius",
         radius_scale=1.0,
@@ -197,16 +196,23 @@ else:
         auto_highlight=True,
     )
 
-    # Labels (option : n'afficher que zones pour réduire le chevauchement)
-    text_df = pd.concat([
-        suppliers_layer_df[["Longitude", "Latitude", "label", "Couleur ID"]],
-        zones_layer_df[["Longitude", "Latitude", "label", "Couleur ID"]]
-    ], ignore_index=True)
+    # TextLayer : si vous voulez moins de bruit, n'afficher que les labels des zones
+    if labels_only_zones:
+        text_df = zones_layer_df[["coordinates", "label", "Couleur ID"]].copy()
+        text_df = text_df.rename(columns={"coordinates": "coordinates", "label": "label", "Couleur ID": "Couleur ID"})
+    else:
+        text_df = pd.concat([
+            suppliers_layer_df[["coordinates", "label", "Couleur ID"]],
+            zones_layer_df[["coordinates", "label", "Couleur ID"]]
+        ], ignore_index=True)
+    # adapter les noms pour TextLayer (pydeck prend position comme liste)
+    text_df = text_df.assign(Longitude=text_df["coordinates"].map(lambda c: c[0]), Latitude=text_df["coordinates"].map(lambda c: c[1]))
+    text_df["coordinates"] = text_df.apply(lambda r: [r["Longitude"], r["Latitude"]], axis=1)
 
     text_layer = pdk.Layer(
         "TextLayer",
         data=text_df,
-        get_position='[Longitude, Latitude]',
+        get_position="coordinates",
         get_text="label",
         get_color="Couleur ID",
         get_size=12,
@@ -214,7 +220,7 @@ else:
         pickable=False,
     )
 
-    # Tooltip : utiliser colonnes "propres" (sans espaces) pour éviter problèmes
+    # Tooltip: utiliser colonnes "propres"
     tooltip = {
         "html": """
         <b>Type:</b> {type}<br>
@@ -231,9 +237,7 @@ else:
         "style": {"backgroundColor": "#262730", "color": "white"}
     }
 
-    st.markdown(
-        f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
-    )
+    st.markdown(f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}")
     st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
 
     deck = pdk.Deck(
@@ -241,13 +245,12 @@ else:
         initial_view_state=pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=zoom),
         tooltip=tooltip
     )
-
     st.pydeck_chart(deck)
 
 # Légende
 st.markdown(generate_legend(ID_selected), unsafe_allow_html=True)
 
-# 7. KPIs pertinents pour la prévention des retards/manquants
+# KPIs et tableau (inchangés)
 st.markdown("---")
 st.markdown("### 📊 Indicateurs de risque et prévention des retards/manquants")
 
@@ -283,7 +286,6 @@ for i, (csv_col, (label, is_percent)) in enumerate(kpi_cols.items()):
     else:
         cols[i].error(f"Colonne absente : {csv_col}")
 
-# 8. Dataframe détaillé
 st.markdown("---")
 st.markdown("### 📋 Détail des fournisseurs suivis")
 st.dataframe(
