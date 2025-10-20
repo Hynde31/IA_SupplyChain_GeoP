@@ -4,7 +4,7 @@ import pydeck as pdk
 import numpy as np
 from geo_zones import ZONES_GEO
 from ai_models import geopolitical_risk_score
-from mapping import mrp_colors, cities_coords, generate_legend
+from mapping import ID_colors, cities_coords, generate_legend
 
 st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
@@ -18,9 +18,9 @@ if df_sup.empty:
     st.stop()
 
 # 1. Récupérer le(s) portefeuille(s) sélectionné(s) depuis la session
-mrp_selected = st.session_state.get("mrp_codes", [])
-if not mrp_selected:
-    st.error("Aucun portefeuille MRP sélectionné. Retournez à l'accueil pour choisir votre portefeuille.")
+ID_selected = st.session_state.get("ID_codes", [])
+if not ID_selected:
+    st.error("Aucun portefeuille ID sélectionné. Retournez à l'accueil pour choisir votre portefeuille.")
     st.stop()
 
 # 2. Filtrer les données en fonction du/des portefeuille(s) choisis
@@ -32,7 +32,7 @@ else:
     st.stop()
 
 df_sup[col_portefeuille] = df_sup[col_portefeuille].astype(str).str.strip().str.upper()
-df_sup = df_sup[df_sup[col_portefeuille].isin(mrp_selected)]
+df_sup = df_sup[df_sup[col_portefeuille].isin(ID_selected)]
 
 # 3. Géolocalisation fournisseurs
 df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
@@ -45,12 +45,12 @@ df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
 df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
-df_sup["Couleur MRP"] = df_sup[col_portefeuille].apply(lambda x: mrp_colors.get(x, mrp_colors["DEFAULT"]))
+df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(lambda x: ID_colors.get(x, ID_colors["DEFAULT"]))
 df_sup["type"] = "Fournisseur"
 
 # 5. Préparation zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO)
-df_geo["Couleur MRP"] = df_geo["Couleur"]
+df_geo["Couleur ID"] = df_geo["Couleur"]
 df_geo["type"] = "Crise géopolitique"
 df_geo["Fournisseur"] = ""
 df_geo["Pays"] = df_geo["Nom"]
@@ -65,7 +65,7 @@ layer = pdk.Layer(
     "ScatterplotLayer",
     data=df_map,
     get_position='[Longitude, Latitude]',
-    get_color="Couleur MRP",
+    get_color="Couleur ID",
     get_radius=70000,
     pickable=True,
     auto_highlight=True,
@@ -74,7 +74,7 @@ layer = pdk.Layer(
 tooltip = {
     "html": """
     <b>Type:</b> {type}<br>
-    <b>MRP:</b> {Portefeuille}<br>
+    <b>ID:</b> {Portefeuille}<br>
     <b>Fournisseur:</b> {Fournisseur}<br>
     <b>Pays:</b> {Pays}<br>
     <b>Ville:</b> {Ville}<br>
@@ -88,7 +88,7 @@ tooltip = {
 }
 
 st.markdown(
-    f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(mrp_selected)>1 else ''} {', '.join(mrp_selected)}"
+    f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
 )
 st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
 st.pydeck_chart(
@@ -98,7 +98,7 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-st.markdown(generate_legend(mrp_selected), unsafe_allow_html=True)
+st.markdown(generate_legend(ID_selected), unsafe_allow_html=True)
 
 # 7. KPIs pertinents pour la prévention des retards/manquants
 st.markdown("---")
@@ -147,3 +147,4 @@ st.dataframe(
     use_container_width=True,
     hide_index=True
 )
+
