@@ -16,7 +16,7 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
 
 df = load_suppliers()
 
-st.markdown("# ✈️ Plateforme de Résilience Supply Chain – Airbus & IA")
+st.markdown("# 🧠🌍 Plateforme de Résilience Supply Chain")
 st.markdown("### Accueil — Sélection de votre portefeuille")
 st.caption("""
 En tant que supply chain officer ou acheteur, sélectionnez ci-dessous le ou les portefeuilles que vous souhaitez analyser.
