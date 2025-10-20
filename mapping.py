@@ -1,4 +1,4 @@
-mrp_colors = {
+ID_colors = {
     "HEL": [57, 106, 177],
     "EBE": [218, 124, 48],
     "DWI": [62, 150, 81],
@@ -18,12 +18,12 @@ cities_coords = {
     # Ajoute d'autres villes nécessaires
 }
 
-def generate_legend(mrp_selected):
+def generate_legend(ID_selected):
     lines = ["**Légende carte :**"]
     color_hex = lambda rgb: f"rgb({rgb[0]},{rgb[1]},{rgb[2]})"
-    for mrp in mrp_selected:
-        col = color_hex(mrp_colors.get(mrp, mrp_colors["DEFAULT"]))
-        lines.append(f'- <span style="color:{col};font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>{mrp}</b>')
+    for ID in ID_selected:
+        col = color_hex(ID_colors.get(ID, ID_colors["DEFAULT"]))
+        lines.append(f'- <span style="color:{col};font-size:22px;">&#9679;</span> Fournisseur portefeuille <b>{ID}</b>')
     lines.append('- <span style="color:orange;font-size:22px;">&#9679;</span> <b>Zones à risque géopolitique</b>')
     lines.append('- <span style="color:red;font-size:22px;">&#9679;</span> <b>Zones de conflit</b>')
     return "\n".join(lines)
