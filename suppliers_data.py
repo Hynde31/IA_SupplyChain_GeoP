@@ -1,13 +1,13 @@
 import random
 
 SUPPLIERS = [
-    # MRP Code HEL : Cockpit, 4 fournisseurs
+    # ID Code HEL : Cockpit, 4 fournisseurs
     {
         "name": "Thales Avionics",
         "component": "Cockpit",
         "criticality": "Critical",
         "dual_sourcing": False,
-        "mrp_code": "HEL",
+        "ID_code": "HEL",
         "sites": [
             {"city": "Bordeaux", "country": "France", "lat": 44.8378, "lon": -0.5792,
              "stock_days": random.randint(7,25), "lead_time": random.randint(30,90),
@@ -22,7 +22,7 @@ SUPPLIERS = [
         "component": "Cockpit",
         "criticality": "Critical",
         "dual_sourcing": True,
-        "mrp_code": "HEL",
+        "ID_code": "HEL",
         "sites": [
             {"city": "Charlotte", "country": "USA", "lat": 35.2271, "lon": -80.8431,
              "stock_days": random.randint(10,30), "lead_time": random.randint(45,100),
@@ -34,7 +34,7 @@ SUPPLIERS = [
         "component": "Cockpit",
         "criticality": "Medium",
         "dual_sourcing": True,
-        "mrp_code": "HEL",
+        "ID_code": "HEL",
         "sites": [
             {"city": "Nuremberg", "country": "Allemagne", "lat": 49.4521, "lon": 11.0767,
              "stock_days": random.randint(8,28), "lead_time": random.randint(35,85),
@@ -46,7 +46,7 @@ SUPPLIERS = [
         "component": "Cockpit",
         "criticality": "Medium",
         "dual_sourcing": True,
-        "mrp_code": "HEL",
+        "ID_code": "HEL",
         "sites": [
             {"city": "Eragny", "country": "France", "lat": 49.0258, "lon": 2.0916,
              "stock_days": random.randint(12,35), "lead_time": random.randint(25,70),
@@ -54,13 +54,13 @@ SUPPLIERS = [
         ]
     },
 
-    # MRP Code EBE : Equipements, 5 fournisseurs
+    # ID Code EBE : Equipements, 5 fournisseurs
     {
         "name": "Zodiac Aerospace",
         "component": "Equipements",
         "criticality": "Critical",
         "dual_sourcing": False,
-        "mrp_code": "EBE",
+        "ID_code": "EBE",
         "sites": [
             {"city": "Plaisir", "country": "France", "lat": 48.8164, "lon": 1.9502,
              "stock_days": random.randint(6,22), "lead_time": random.randint(30,85),
@@ -72,7 +72,7 @@ SUPPLIERS = [
         "component": "Equipements",
         "criticality": "Medium",
         "dual_sourcing": True,
-        "mrp_code": "EBE",
+        "ID_code": "EBE",
         "sites": [
             {"city": "Phoenix", "country": "USA", "lat": 33.4484, "lon": -112.0740,
              "stock_days": random.randint(12,32), "lead_time": random.randint(55,120),
@@ -84,7 +84,7 @@ SUPPLIERS = [
         "component": "Equipements",
         "criticality": "Low",
         "dual_sourcing": True,
-        "mrp_code": "EBE",
+        "ID_code": "EBE",
         "sites": [
             {"city": "Titchfield", "country": "UK", "lat": 50.8486, "lon": -1.2357,
              "stock_days": random.randint(14,40), "lead_time": random.randint(40,110),
@@ -96,7 +96,7 @@ SUPPLIERS = [
         "component": "Equipements",
         "criticality": "Low",
         "dual_sourcing": True,
-        "mrp_code": "EBE",
+        "ID_code": "EBE",
         "sites": [
             {"city": "Ried", "country": "Autriche", "lat": 48.2100, "lon": 13.4880,
              "stock_days": random.randint(10,25), "lead_time": random.randint(50,130),
@@ -108,7 +108,7 @@ SUPPLIERS = [
         "component": "Equipements",
         "criticality": "Critical",
         "dual_sourcing": False,
-        "mrp_code": "EBE",
+        "ID_code": "EBE",
         "sites": [
             {"city": "Rochefort", "country": "France", "lat": 45.9420, "lon": -0.9627,
              "stock_days": random.randint(7,30), "lead_time": random.randint(38,95),
@@ -119,13 +119,13 @@ SUPPLIERS = [
         ]
     },
 
-    # MRP Code DWI : Connectivités, Electronique, 6 fournisseurs
+    # ID Code DWI : Connectivités, Electronique, 6 fournisseurs
     {
         "name": "Rockwell Collins",
         "component": "Connectivités",
         "criticality": "Critical",
         "dual_sourcing": False,
-        "mrp_code": "DWI",
+        "ID_code": "DWI",
         "sites": [
             {"city": "Cedar Rapids", "country": "USA", "lat": 42.0083, "lon": -91.6441,
              "stock_days": random.randint(8,20), "lead_time": random.randint(60,120),
@@ -137,7 +137,7 @@ SUPPLIERS = [
         "component": "Electronique",
         "criticality": "Medium",
         "dual_sourcing": True,
-        "mrp_code": "DWI",
+        "ID_code": "DWI",
         "sites": [
             {"city": "Dorset", "country": "UK", "lat": 50.7488, "lon": -2.3445,
              "stock_days": random.randint(15,38), "lead_time": random.randint(50,105),
@@ -149,7 +149,7 @@ SUPPLIERS = [
         "component": "Connectivités",
         "criticality": "Low",
         "dual_sourcing": True,
-        "mrp_code": "DWI",
+        "ID_code": "DWI",
         "sites": [
             {"city": "Schaffhausen", "country": "Suisse", "lat": 47.6967, "lon": 8.6340,
              "stock_days": random.randint(18,35), "lead_time": random.randint(35,100),
@@ -161,7 +161,7 @@ SUPPLIERS = [
         "component": "Connectivités",
         "criticality": "Medium",
         "dual_sourcing": True,
-        "mrp_code": "DWI",
+        "ID_code": "DWI",
         "sites": [
             {"city": "Voreppe", "country": "France", "lat": 45.3287, "lon": 5.6077,
              "stock_days": random.randint(11,29), "lead_time": random.randint(40,110),
@@ -173,7 +173,7 @@ SUPPLIERS = [
         "component": "Electronique",
         "criticality": "Critical",
         "dual_sourcing": False,
-        "mrp_code": "DWI",
+        "ID_code": "DWI",
         "sites": [
             {"city": "Wallingford", "country": "USA", "lat": 41.4570, "lon": -72.8250,
              "stock_days": random.randint(10,32), "lead_time": random.randint(50,115),
@@ -185,7 +185,7 @@ SUPPLIERS = [
         "component": "Electronique",
         "criticality": "Medium",
         "dual_sourcing": True,
-        "mrp_code": "DWI",
+        "ID_code": "DWI",
         "sites": [
             {"city": "Toulouse", "country": "France", "lat": 43.6047, "lon": 1.4442,
              "stock_days": random.randint(15,40), "lead_time": random.randint(28,90),
@@ -197,4 +197,5 @@ SUPPLIERS = [
     },
 ]
 
-MRP_CODES = ["HEL", "EBE", "DWI"]
+ID_CODES = ["HEL", "EBE", "DWI"]
+
