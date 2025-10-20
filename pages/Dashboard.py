@@ -19,18 +19,13 @@ except Exception:
     st.text(traceback.format_exc())
     st.stop()
 
+# mapping.py expose ID_colors (vous avez précisé que vous gardez ce nom)
 try:
-    # mapping.py doit exposer MRP_colors, mrp_colors ou ID_colors et cities_coords, generate_legend
-    from mapping import MRP_colors, mrp_colors, ID_colors, cities_coords, generate_legend
+    from mapping import ID_colors, cities_coords, generate_legend
 except Exception:
-    # fallback pour aider au debug si les noms diffèrent
-    try:
-        from mapping import mrp_colors as MRP_colors, cities_coords, generate_legend
-        ID_colors = MRP_colors
-    except Exception:
-        st.error("Erreur lors de l'import du module mapping. Détails :")
-        st.text(traceback.format_exc())
-        st.stop()
+    st.error("Erreur lors de l'import du module mapping. Détails :")
+    st.text(traceback.format_exc())
+    st.stop()
 
 st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
@@ -72,10 +67,8 @@ df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
     lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
 )
 
-#  --- Couleurs : récupérer depuis ID_colors ou MRP_colors selon dispo ---
-# ID_colors doit être un dict mapping ID -> [r,g,b] (optionnellement [r,g,b,a])
+#  --- Couleurs : utiliser le dict ID_colors fourni dans mapping.py ---
 def ensure_rgba(col):
-    # si col n'est pas une liste, renvoyer gris
     if not isinstance(col, (list, tuple)):
         return [200, 200, 200, 255]
     col = list(col)
@@ -85,22 +78,17 @@ def ensure_rgba(col):
         return col[:4]
     return [200, 200, 200, 255]
 
-# choisir le dict des couleurs disponible
-color_dict = None
-for cand in ("ID_colors", "MRP_colors", "mrp_colors"):
-    if cand in globals():
-        color_dict = globals()[cand]
-        break
-if color_dict is None:
-    color_dict = {}
+# Utiliser directement ID_colors (vous l'avez conservé sous ce nom)
+color_dict = ID_colors if isinstance(ID_colors, dict) else {}
 
-df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(lambda x: ensure_rgba(color_dict.get(x, color_dict.get("DEFAULT", [200,200,200]))))
+df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(
+    lambda x: ensure_rgba(color_dict.get(x, color_dict.get("DEFAULT", [200,200,200])))
+)
 df_sup["type"] = "Fournisseur"
 df_sup["label"] = df_sup.get("Fournisseur", df_sup.get(col_portefeuille, ""))
 
 # 5. Préparation zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO).copy()
-# s'assurer que Latitude/Longitude sont numériques
 df_geo["Latitude"] = pd.to_numeric(df_geo["Latitude"], errors="coerce")
 df_geo["Longitude"] = pd.to_numeric(df_geo["Longitude"], errors="coerce")
 df_geo["Couleur ID"] = df_geo["Couleur"].apply(ensure_rgba)
@@ -112,7 +100,7 @@ df_geo["label"] = df_geo["Nom"]
 # 6. Fusion pour la map (mais on gardera deux dataframes pour layers)
 df_map = pd.concat([df_sup, df_geo], ignore_index=True, sort=False)
 
-# Calcul du centre de la carte en se basant sur fournisseurs si possible sinon moyenne générale
+# Calcul du centre de la carte
 valid_sup = df_sup.dropna(subset=["Latitude", "Longitude"])
 center_lat = valid_sup["Latitude"].mean() if not valid_sup.empty else df_geo["Latitude"].mean()
 center_lon = valid_sup["Longitude"].mean() if not valid_sup.empty else df_geo["Longitude"].mean()
@@ -120,20 +108,15 @@ if np.isnan(center_lat) or np.isnan(center_lon):
     center_lat, center_lon = 46.7, 2.4  # fallback
 
 # 6a. Préparer layers séparés pour plus de contrôle
-# Filtrer points valides
 suppliers_layer_df = df_sup.dropna(subset=["Latitude", "Longitude"]).copy()
 zones_layer_df = df_geo.dropna(subset=["Latitude", "Longitude"]).copy()
 
-# Ajouter radius pour rendre zones plus visibles (basé sur "Impact" si présent)
-suppliers_layer_df["radius"] = 30000  # rayon fixe pour fournisseurs (à ajuster)
-# Pour zones, agrandir suivant l'impact (ou valeur par défaut)
+suppliers_layer_df["radius"] = 30000
 if "Impact" in zones_layer_df.columns:
     zones_layer_df["radius"] = zones_layer_df["Impact"].apply(lambda x: max(80000, float(x) * 300000))
 else:
     zones_layer_df["radius"] = 200000
 
-# PyDeck attend que get_color retourne tableau RGBA ; déjà préparé
-# Layers :
 zones_layer = pdk.Layer(
     "ScatterplotLayer",
     data=zones_layer_df,
@@ -160,8 +143,6 @@ suppliers_layer = pdk.Layer(
     auto_highlight=True,
 )
 
-# Text labels pour les points (nom fournisseur / nom zone)
-# Fusionner subset pour texte (évite champs manquants)
 text_df = pd.concat([
     suppliers_layer_df[["Longitude", "Latitude", "label", "Couleur ID"]],
     zones_layer_df[["Longitude", "Latitude", "label", "Couleur ID"]]
@@ -178,7 +159,6 @@ text_layer = pdk.Layer(
     pickable=False,
 )
 
-# Tooltip : garder la template mais notez que pydeck peut ne pas afficher correctement les champs avec espaces selon version
 tooltip = {
     "html": """
     <b>Type:</b> {type}<br>
@@ -195,7 +175,6 @@ tooltip = {
     "style": {"backgroundColor": "#262730", "color": "white"}
 }
 
-# Affichage
 st.markdown(
     f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
 )
