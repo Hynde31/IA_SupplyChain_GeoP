@@ -56,9 +56,6 @@ df_geo["Fournisseur"] = ""
 df_geo["Pays"] = df_geo["Nom"]
 
 # 6. Fusion pour la map
-# ⚠️ On suppose ici que df_sup et df_geo ont été créés comme montré plus haut
-# (avec la colonne "Couleur ID" en format [R,G,B,A])
-
 df_map = pd.concat([df_sup, df_geo], ignore_index=True, sort=False)
 
 center_lat = np.nanmean(df_sup["Latitude"]) if not df_sup["Latitude"].isna().all() else 46.7
@@ -68,7 +65,7 @@ layer = pdk.Layer(
     "ScatterplotLayer",
     data=df_map,
     get_position='[Longitude, Latitude]',
-    get_fill_color="Couleur ID",   # ✅ IMPORTANT : get_fill_color au lieu de get_color
+    get_color="Couleur ID",
     get_radius=70000,
     pickable=True,
     auto_highlight=True,
@@ -94,7 +91,6 @@ st.markdown(
     f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
 )
 st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
-
 st.pydeck_chart(
     pdk.Deck(
         layers=[layer],
@@ -102,7 +98,6 @@ st.pydeck_chart(
         tooltip=tooltip
     )
 )
-
 st.markdown(generate_legend(ID_selected), unsafe_allow_html=True)
 
 # 7. KPIs pertinents pour la prévention des retards/manquants
@@ -121,7 +116,7 @@ def kpi_fmt(val, unit="", percent=False):
 kpi_cols = {
     "CA annuel (M€)": ("CA total fournisseurs (M€)", False),
     "Volume pièces/an": ("Volume total pièces/an", False),
-    "Dépendance  (%)": ("Dépendance moyenne ", True),
+    "Dépendance Airbus (%)": ("Dépendance moyenne Airbus", True),
     "Délai moyen (jours)": ("Délai moyen global (jours)", False),
     "Score (%)": ("Score moyen risque géopolitique", True),
 }
@@ -146,7 +141,7 @@ st.markdown("---")
 st.markdown("### 📋 Détail des fournisseurs suivis")
 st.dataframe(
     df_sup[
-        [col_portefeuille, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance  (%)", "Délai moyen (jours)", "Volume pièces/an"]
+        [col_portefeuille, "Fournisseur", "Pays", "Ville", "Score (%)", "Alerte", "CA annuel (M€)", "Dépendance Airbus (%)", "Délai moyen (jours)", "Volume pièces/an"]
         if "CA annuel (M€)" in df_sup.columns else df_sup.columns
     ],
     use_container_width=True,
