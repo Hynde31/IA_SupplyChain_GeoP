@@ -2,29 +2,9 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 import numpy as np
-import traceback
-
-# Imports
-try:
-    from geo_zones import ZONES_GEO
-except Exception:
-    st.error("Erreur lors de l'import de geo_zones. Détails :")
-    st.text(traceback.format_exc())
-    st.stop()
-
-try:
-    from ai_models import geopolitical_risk_score
-except Exception:
-    st.error("Erreur lors de l'import de ai_models. Détails :")
-    st.text(traceback.format_exc())
-    st.stop()
-
-try:
-    from mapping import ID_colors, cities_coords, generate_legend
-except Exception:
-    st.error("Erreur lors de l'import du module mapping. Détails :")
-    st.text(traceback.format_exc())
-    st.stop()
+from geo_zones import ZONES_GEO
+from ai_models import geopolitical_risk_score
+from mapping import ID_colors, cities_coords, generate_legend
 
 st.set_page_config(page_title="Dashboard IA Supply Chain", layout="wide")
 
@@ -33,9 +13,9 @@ def load_suppliers(path="mapping_fournisseurs.csv"):
     return pd.read_csv(path).fillna("")
 
 df_sup = load_suppliers()
-# Ne pas st.stop() ici pour permettre d'afficher les zones même si aucun fournisseur
 if df_sup.empty:
-    st.warning("Le fichier mapping_fournisseurs.csv est vide ou introuvable. Les zones seront tout de même affichées si définies.")
+    st.warning("Aucun fournisseur. Merci de vérifier le fichier.")
+    st.stop()
 
 # 1. Récupérer le(s) portefeuille(s) sélectionné(s) depuis la session
 ID_selected = st.session_state.get("ID_codes", [])
@@ -54,30 +34,23 @@ else:
 df_sup[col_portefeuille] = df_sup[col_portefeuille].astype(str).str.strip().str.upper()
 df_sup = df_sup[df_sup[col_portefeuille].isin(ID_selected)].copy()
 
-# 3. Géolocalisation fournisseurs (cities_coords stocke (lat, lon))
+# 3. Géolocalisation fournisseurs
 df_sup["Ville"] = df_sup["Ville"].astype(str).str.strip()
 df_sup["Latitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[0])
 df_sup["Longitude"] = df_sup["Ville"].map(lambda v: cities_coords.get(v, (np.nan, np.nan))[1])
 
 # 4. Score risque géopolitique
-if not df_sup.empty:
-    df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
-    df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
-    df_sup["Score_pct"] = df_sup["Score (%)"]  # colonne sans espaces pour tooltip
-    df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
-        lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
-    )
-else:
-    # Colonnes vides si pas de fournisseurs sélectionnés
-    df_sup["Score risque géopolitique"] = pd.Series(dtype=float)
-    df_sup["Score (%)"] = pd.Series(dtype=float)
-    df_sup["Score_pct"] = pd.Series(dtype=float)
-    df_sup["Alerte"] = pd.Series(dtype=str)
+df_sup["Score risque géopolitique"] = df_sup.apply(lambda r: geopolitical_risk_score(r, ZONES_GEO), axis=1)
+df_sup["Score (%)"] = (df_sup["Score risque géopolitique"] * 100).round(1)
+df_sup["Score_pct"] = df_sup["Score (%)"]  # colonne sans espace pour tooltip
+df_sup["Alerte"] = df_sup["Score risque géopolitique"].apply(
+    lambda s: "🟥 Critique" if s >= 0.7 else ("🟧 Surveille" if s >= 0.5 else "🟩 OK")
+)
+df_sup["Portefeuille"] = df_sup[col_portefeuille]
+df_sup["type"] = "Fournisseur"
+df_sup["label"] = df_sup.get("Fournisseur", df_sup.get(col_portefeuille, ""))
 
-# Colonne Portefeuille stable pour tooltip
-df_sup["Portefeuille"] = df_sup[col_portefeuille] if col_portefeuille else ""
-
-#  --- Couleurs : normaliser vers [r,g,b,a] ---
+# Helper: normalize color to RGBA list for pydeck
 def ensure_rgba(col):
     if not isinstance(col, (list, tuple)):
         return [200, 200, 200, 255]
@@ -86,172 +59,163 @@ def ensure_rgba(col):
         col.append(255)
     return [int(col[0]), int(col[1]), int(col[2]), int(col[3])]
 
+#  --- Couleurs fournisseurs ---
+# Use ID_colors mapping but make sure it's RGBA
 color_dict = ID_colors if isinstance(ID_colors, dict) else {}
-df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(
-    lambda x: ensure_rgba(color_dict.get(x, color_dict.get("DEFAULT", [200,200,200])))
-)
-df_sup["type"] = "Fournisseur"
-df_sup["label"] = df_sup.get("Fournisseur", df_sup.get(col_portefeuille, ""))
+def get_supplier_color(id_code):
+    # Force HEL to the blue used in mapping (or fallback)
+    if str(id_code).upper() == "HEL":
+        return ensure_rgba(color_dict.get("HEL", [57, 106, 177]))
+    return ensure_rgba(color_dict.get(id_code, color_dict.get("DEFAULT", [200,200,200])))
+
+df_sup["Couleur ID"] = df_sup[col_portefeuille].apply(get_supplier_color)
 
 # 5. Préparation zones géopolitiques
 df_geo = pd.DataFrame(ZONES_GEO).copy()
-# s'assurer des colonnes
-df_geo["Latitude"] = pd.to_numeric(df_geo.get("Latitude"), errors="coerce")
-df_geo["Longitude"] = pd.to_numeric(df_geo.get("Longitude"), errors="coerce")
-df_geo["Couleur ID"] = df_geo["Couleur"].apply(ensure_rgba)
+# Decide color for zones: red for 'zones de conflit' (impact >= 0.6), otherwise orange (zones à risque)
+def zone_color_from_impact(row):
+    try:
+        impact = float(row.get("Impact", np.nan))
+    except Exception:
+        impact = np.nan
+    if pd.notna(impact) and impact >= 0.6:
+        return [255, 0, 0, 255]  # rouge pour conflit
+    else:
+        return [255, 165, 0, 255]  # orange pour risque
+# If the zone already has a 'Couleur' key we still override based on impact to fit the requested scheme
+df_geo["Couleur ID"] = df_geo.apply(zone_color_from_impact, axis=1)
 df_geo["type"] = "Crise géopolitique"
 df_geo["Fournisseur"] = ""
 df_geo["Pays"] = df_geo["Nom"]
 df_geo["label"] = df_geo["Nom"]
-# colonne Portefeuille vide pour zones (évite KeyError dans tooltip)
-df_geo["Portefeuille"] = ""
+df_geo["Portefeuille"] = ""  # empty to avoid tooltip key errors
 
-# 6. Construire coordonnées au format attendu par pydeck : [lon, lat]
-# Pour fournisseurs
-if "Latitude" in df_sup.columns and "Longitude" in df_sup.columns:
-    df_sup["Latitude"] = pd.to_numeric(df_sup["Latitude"], errors="coerce")
-    df_sup["Longitude"] = pd.to_numeric(df_sup["Longitude"], errors="coerce")
-    df_sup["coordinates"] = df_sup.apply(
-        lambda r: [float(r["Longitude"]), float(r["Latitude"])] if pd.notna(r["Latitude"]) and pd.notna(r["Longitude"]) else None,
-        axis=1
-    )
-else:
-    df_sup["coordinates"] = None
+# 6. Fusion pour la map (utilisé for layer data combine)
+df_map = pd.concat([df_sup, df_geo], ignore_index=True, sort=False)
 
-# Pour zones
-df_geo["coordinates"] = df_geo.apply(
+# 7. Build coordinates column expected by pydeck: [lon, lat]
+df_map["Latitude"] = pd.to_numeric(df_map.get("Latitude"), errors="coerce")
+df_map["Longitude"] = pd.to_numeric(df_map.get("Longitude"), errors="coerce")
+df_map["coordinates"] = df_map.apply(
     lambda r: [float(r["Longitude"]), float(r["Latitude"])] if pd.notna(r["Latitude"]) and pd.notna(r["Longitude"]) else None,
     axis=1
 )
 
-# Option: injecter points de test pour vérifier affichage (décommenter si utile)
-# test_points = False
-# if test_points:
-#     # Ajouter un point test pour vérifier l'affichage
-#     df_sup = pd.concat([df_sup, pd.DataFrame([{
-#         "Fournisseur": "TEST Rousset",
-#         "Ville": "Rousset",
-#         "Latitude": 43.4285,
-#         "Longitude": 5.5872,
-#         "coordinates": [5.5872, 43.4285],
-#         "Couleur ID": ensure_rgba([57,106,177]),
-#         "Portefeuille": "TEST",
-#         "Score_pct": 12.3,
-#         "Alerte": "🟩 OK",
-#         "type": "Fournisseur",
-#         "label": "TEST Rousset"
-#     }])], ignore_index=True)
+# Filter valid points for layers
+df_map_valid = df_map[df_map["coordinates"].notna()].copy()
 
-# 7. Préparer dataframes pour les layers (points valides seulement)
-suppliers_layer_df = df_sup[df_sup["coordinates"].notna()].copy()
-zones_layer_df = df_geo[df_geo["coordinates"].notna()].copy()
+if df_map_valid.empty:
+    st.warning("Aucun point géolocalisé à afficher. Vérifiez la correspondance Ville -> cities_coords.")
+    st.stop()
 
-# Si aucun point fournisseur mais des zones présentes, on affichera au moins les zones
-if suppliers_layer_df.empty and zones_layer_df.empty:
-    st.warning("Aucun point géolocalisé à afficher. Vérifiez que les noms de villes dans le CSV correspondent aux clés de mapping.cities_coords.")
+# set center from suppliers if exist else from zones
+suppliers_coords = df_sup.dropna(subset=["Latitude", "Longitude"])
+if not suppliers_coords.empty:
+    center_lat = float(suppliers_coords["Latitude"].mean())
+    center_lon = float(suppliers_coords["Longitude"].mean())
 else:
-    # Calculer centre à partir de tous les coords disponibles (zones + fournisseurs)
-    all_coords = pd.concat([
-        suppliers_layer_df[["coordinates"]].dropna().assign(lon=lambda d: d["coordinates"].map(lambda c: c[0]), lat=lambda d: d["coordinates"].map(lambda c: c[1])),
-        zones_layer_df[["coordinates"]].dropna().assign(lon=lambda d: d["coordinates"].map(lambda c: c[0]), lat=lambda d: d["coordinates"].map(lambda c: c[1]))
-    ], ignore_index=True)
+    # fallback to average of df_map_valid
+    center_lat = float(df_map_valid["Latitude"].mean())
+    center_lon = float(df_map_valid["Longitude"].mean())
 
-    center_lat = float(all_coords["lat"].mean())
-    center_lon = float(all_coords["lon"].mean())
+# Prepare two separate datasets for layers so coloring logic is consistent
+zones_layer_df = df_map_valid[df_map_valid["type"] == "Crise géopolitique"].copy()
+suppliers_layer_df = df_map_valid[df_map_valid["type"] == "Fournisseur"].copy()
 
-    lat_min, lat_max = all_coords["lat"].min(), all_coords["lat"].max()
-    lon_min, lon_max = all_coords["lon"].min(), all_coords["lon"].max()
-    lat_span = lat_max - lat_min if pd.notna(lat_max) and pd.notna(lat_min) else 180
-    lon_span = lon_max - lon_min if pd.notna(lon_max) and pd.notna(lon_min) else 360
-    span = max(lat_span, lon_span)
-    if span < 0.5:
-        zoom = 6.0
-    elif span < 3:
-        zoom = 4.0
-    elif span < 20:
-        zoom = 3.0
-    else:
-        zoom = 2.1
+# Ensure color fields are lists of ints length 4
+zones_layer_df["Couleur ID"] = zones_layer_df["Couleur ID"].apply(ensure_rgba)
+suppliers_layer_df["Couleur ID"] = suppliers_layer_df["Couleur ID"].apply(ensure_rgba)
 
-    # Rayons
-    suppliers_layer_df["radius"] = suppliers_layer_df.get("radius", 30000)
-    if "Impact" in zones_layer_df.columns:
-        zones_layer_df["radius"] = zones_layer_df["Impact"].apply(lambda x: max(80000, float(x) * 300000))
-    else:
-        zones_layer_df["radius"] = 200000
+# Set radii (zones bigger)
+suppliers_layer_df["radius"] = suppliers_layer_df.get("radius", 50000)
+zones_layer_df["radius"] = zones_layer_df.get("radius", 200000)
 
-    # Layers (utilise la colonne 'coordinates')
-    zones_layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=zones_layer_df,
-        get_position="coordinates",
-        get_color="Couleur ID",
-        get_radius="radius",
-        radius_scale=1.2,
-        radius_min_pixels=6,
-        radius_max_pixels=400,
-        pickable=True,
-        auto_highlight=True,
-    )
+# Layers
+zones_layer = pdk.Layer(
+    "ScatterplotLayer",
+    data=zones_layer_df,
+    get_position="coordinates",
+    get_color="Couleur ID",
+    get_radius="radius",
+    radius_scale=1.2,
+    radius_min_pixels=6,
+    radius_max_pixels=400,
+    pickable=True,
+    auto_highlight=True,
+)
 
-    suppliers_layer = pdk.Layer(
-        "ScatterplotLayer",
-        data=suppliers_layer_df,
-        get_position="coordinates",
-        get_color="Couleur ID",
-        get_radius="radius",
-        radius_scale=1.0,
-        radius_min_pixels=3,
-        radius_max_pixels=200,
-        pickable=True,
-        auto_highlight=True,
-    )
+suppliers_layer = pdk.Layer(
+    "ScatterplotLayer",
+    data=suppliers_layer_df,
+    get_position="coordinates",
+    get_color="Couleur ID",
+    get_radius="radius",
+    radius_scale=1.0,
+    radius_min_pixels=3,
+    radius_max_pixels=200,
+    pickable=True,
+    auto_highlight=True,
+)
 
-    # Text labels : n'afficher que les labels des zones par défaut pour réduire le bruit
-    text_df = zones_layer_df[["coordinates", "label", "Couleur ID"]].copy()
-    # TextLayer prend aussi une position au format [lon, lat]
-    text_layer = pdk.Layer(
-        "TextLayer",
-        data=text_df.assign(Longitude=text_df["coordinates"].map(lambda c: c[0]), Latitude=text_df["coordinates"].map(lambda c: c[1])).assign(coordinates=lambda d: d[["Longitude","Latitude"]].values.tolist()),
-        get_position="coordinates",
-        get_text="label",
-        get_color="Couleur ID",
-        get_size=14,
-        get_alignment_baseline='"bottom"',
-        pickable=False,
-    )
+# Text layer: show labels for zones and suppliers (we keep small to avoid clutter)
+text_df = pd.concat([
+    zones_layer_df[["coordinates", "label", "Couleur ID"]],
+    suppliers_layer_df[["coordinates", "label", "Couleur ID"]]
+], ignore_index=True).rename(columns={"coordinates": "coordinates", "label": "label", "Couleur ID": "Couleur ID"})
+# Ensure coordinates present in text_df
+text_df = text_df.assign(Longitude=text_df["coordinates"].map(lambda c: c[0]), Latitude=text_df["coordinates"].map(lambda c: c[1]))
+text_df["coordinates"] = text_df.apply(lambda r: [r["Longitude"], r["Latitude"]], axis=1)
 
-    # Tooltip : utiliser colonnes "propres" (sans espaces) quand possible
-    tooltip = {
-        "html": """
-        <b>Type:</b> {type}<br>
-        <b>ID:</b> {Portefeuille}<br>
-        <b>Fournisseur:</b> {Fournisseur}<br>
-        <b>Pays:</b> {Pays}<br>
-        <b>Ville:</b> {Ville}<br>
-        <b>Score risque:</b> {Score_pct} / 100<br>
-        <b>Alerte:</b> {Alerte}<br>
-        <b>Zone:</b> {Nom}<br>
-        <b>Description:</b> {Description}<br>
-        <b>Cas:</b> {Cas}
-        """,
-        "style": {"backgroundColor": "#262730", "color": "white"}
-    }
+text_layer = pdk.Layer(
+    "TextLayer",
+    data=text_df,
+    get_position="coordinates",
+    get_text="label",
+    get_color="Couleur ID",
+    get_size=12,
+    get_alignment_baseline='"bottom"',
+    pickable=False,
+)
 
-    st.markdown(
-        f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
-    )
-    st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
+# Tooltip (use Score_pct column for suppliers)
+tooltip = {
+    "html": """
+    <b>Type:</b> {type}<br>
+    <b>ID:</b> {Portefeuille}<br>
+    <b>Fournisseur:</b> {Fournisseur}<br>
+    <b>Pays:</b> {Pays}<br>
+    <b>Ville:</b> {Ville}<br>
+    <b>Score risque:</b> {Score_pct} / 100<br>
+    <b>Alerte:</b> {Alerte}<br>
+    <b>Zone:</b> {Nom}<br>
+    <b>Description:</b> {Description}<br>
+    <b>Cas:</b> {Cas}
+    """,
+    "style": {"backgroundColor": "#262730", "color": "white"}
+}
 
-    deck = pdk.Deck(
-        layers=[zones_layer, suppliers_layer, text_layer],
-        initial_view_state=pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=zoom),
-        tooltip=tooltip
-    )
-    st.pydeck_chart(deck)
+# Display map
+st.markdown(
+    f"## 🌍 Carte des fournisseurs et crises géopolitiques – Portefeuille{'s' if len(ID_selected)>1 else ''} {', '.join(ID_selected)}"
+)
+st.caption("Visualisez les localisations de vos fournisseurs critiques ainsi que les zones de crises géopolitiques majeures pouvant impacter la chaîne d'approvisionnement Airbus.")
+deck = pdk.Deck(
+    layers=[zones_layer, suppliers_layer, text_layer],
+    initial_view_state=pdk.ViewState(longitude=center_lon, latitude=center_lat, zoom=2.1),
+    tooltip=tooltip
+)
+st.pydeck_chart(deck)
 
-# Afficher la légende
+# Custom legend to match the requested colors exactly
+legend_html = """
+**Légende (couleurs forcées) :**<br>
+- <span style="color:rgb(57,106,177);font-size:18px;">&#9679;</span> Fournisseur portefeuille <b>HEL</b><br>
+- <span style="color:rgb(255,165,0);font-size:18px;">&#9679;</span> <b>Zones à risque géopolitique</b><br>
+- <span style="color:rgb(255,0,0);font-size:18px;">&#9679;</span> <b>Zones de conflit</b><br>
+"""
+# Show both computed legend and the forced-color legend for clarity
 st.markdown(generate_legend(ID_selected), unsafe_allow_html=True)
+st.markdown(legend_html, unsafe_allow_html=True)
 
 # 7. KPIs pertinents pour la prévention des retards/manquants
 st.markdown("---")
