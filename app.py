@@ -1,18 +1,18 @@
 import streamlit as st
 
 st.set_page_config(
-    page_title="Supply Chain IA & Géopolitique – Airbus",
-    page_icon="✈️",
+    page_title="Supply Chain IA & Géopolitique",
+    page_icon="🧠🌍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 st.markdown("""
-# ✈️ Plateforme de Résilience Supply Chain – Airbus & IA
+# ✈️ Plateforme de Résilience Supply Chain
 
 Bienvenue sur la plateforme de pilotage intelligente dédiée à la résilience de la supply chain aéronautique face aux risques géopolitiques.
 
-Cette solution vous permet d’analyser, visualiser et anticiper les impacts des perturbations mondiales sur votre portefeuille fournisseur Airbus.
+Cette solution vous permet d’analyser, visualiser et anticiper les impacts des perturbations mondiales sur votre portefeuille fournisseur.
 
 ---
 """)
@@ -35,7 +35,7 @@ else:
 
 # Entrée pour ajouter un nouveau code ID
 new_code = st.text_input(
-    "Ajouter un code ID (exemple : HEL, EBE)", 
+    "Ajouter un code ID (exemple : HEL, EBE, DWI)", 
     max_chars=10, 
     help="Entrez un code portefeuille puis validez pour l'ajouter à votre sélection."
 ).strip().upper()
