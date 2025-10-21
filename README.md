@@ -107,7 +107,6 @@ Unauthorized reproduction, distribution, or commercial use of this project or an
 
 ## 🤝 Contact
 
-📧 hynde@example.com  
 🔗 [LinkedIn](#Hynde EL HOUJJAJI)
 
 ---
