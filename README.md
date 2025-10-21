@@ -105,9 +105,3 @@ Unauthorized reproduction, distribution, or commercial use of this project or an
 
 ---
 
-## 🤝 Contact
-
-🔗 [LinkedIn](#Hynde EL HOUJJAJI)
-
----
-
