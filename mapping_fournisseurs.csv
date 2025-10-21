@@ -1,4 +1,4 @@
-Portefeuille,Fournisseur,Pays,Ville,Score fournisseur,CA annuel (M€),Dépendance Airbus (%),Délai moyen (jours),Volume pièces/an
+Portefeuille,Fournisseur,Pays,Ville,Score fournisseur,CA annuel (M€),Dépendance (%),Délai moyen (jours),Volume pièces/an
 HEL,Thales Avionics,France,Toulouse,0.2,500,65,10,25000
 HEL,Collins Aerospace,USA,Cedar Rapids,0.3,300,40,22,18000
 HEL,Spirit AeroSystems,UK,Belfast,0.6,150,85,17,8000
